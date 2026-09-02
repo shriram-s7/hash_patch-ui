@@ -1,0 +1,116 @@
+@import "tailwindcss";
+
+/* Manual dark-mode toggle: a `.dark` class on <html> (set by index.html's
+   pre-paint inline script and src/theme.ts) wins over `dark:` utilities,
+   instead of Tailwind's default bare `prefers-color-scheme` strategy. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ---------------------------------------------------------------------
+ * Design tokens. Every color used anywhere in the app is one of these
+ * CSS variables, defined in exactly two places (light block, dark
+ * block) — no component file ever writes a raw hex value. Base UI
+ * chrome (surface/ink/line) and the semantic quantum-status colors come
+ * from the dataviz skill's validated, contrast-checked status palette
+ * (references/palette.md); reachability uses a couple of its
+ * categorical slots, deliberately NOT reused from the status palette,
+ * so the two badge systems never collide by hue when they sit side by
+ * side in the same table row.
+ *
+ * Names are chosen so the Tailwind utilities they generate below
+ * (`bg-page`, `text-ink`, `border-line`, ...) read cleanly — a token
+ * is never named after the utility prefix it will sit behind.
+ * ------------------------------------------------------------------- */
+:root {
+  color-scheme: light;
+
+  /* Chrome */
+  --page: #f9f9f7;
+  --surface: #fcfcfb;
+  --surface-raised: #ffffff;
+  --line: rgba(11, 11, 11, 0.1);
+  --ink: #0b0b0b;
+  --ink-secondary: #52514e;
+  --ink-muted: #898781;
+
+  /* Status palette (quantum status) — fixed, mode-invariant hex, never
+     reused for anything but these four roles. */
+  --status-critical: #d03b3b; /* broken-by-shor */
+  --status-warning: #fab219; /* weakened-by-grover */
+  --status-good: #0ca30c; /* quantum-safe */
+  --status-neutral-bg: #e1e0d9; /* broken-classically / unknown chip bg */
+  --status-neutral-fg: #52514e; /* broken-classically / unknown chip text */
+
+  /* Reachability — categorical slots 7 (violet) & 1 (blue), distinct
+     from the status palette above. */
+  --reach-external: #4a3aa7; /* live-external, solid */
+  --reach-internal: #2a78d6; /* live-internal, solid */
+  --reach-inert: #898781; /* inert, gray outline */
+  --reach-unknown: #1baf7a; /* unknown, teal outline — must never match inert */
+
+  /* Accent (interactive elements: buttons, links, focus rings) */
+  --accent: #2a78d6;
+  --accent-fg: #ffffff;
+}
+
+.dark {
+  color-scheme: dark;
+
+  --page: #0d0d0d;
+  --surface: #1a1a19;
+  --surface-raised: #232322;
+  --line: rgba(255, 255, 255, 0.1);
+  --ink: #ffffff;
+  --ink-secondary: #c3c2b7;
+  --ink-muted: #898781;
+
+  --status-critical: #d03b3b;
+  --status-warning: #fab219;
+  --status-good: #0ca30c;
+  --status-neutral-bg: #2c2c2a;
+  --status-neutral-fg: #c3c2b7;
+
+  --reach-external: #9085e9;
+  --reach-internal: #3987e5;
+  --reach-inert: #898781;
+  --reach-unknown: #199e70;
+
+  --accent: #3987e5;
+  --accent-fg: #0b0b0b;
+}
+
+/* Bridge the CSS-variable tokens into Tailwind's utility system (v4
+   CSS-first config) so components write `bg-page`, `text-ink`,
+   `border-line`, `text-status-critical`, etc. — never raw hex. */
+@theme inline {
+  --color-page: var(--page);
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-line: var(--line);
+  --color-ink: var(--ink);
+  --color-ink-secondary: var(--ink-secondary);
+  --color-ink-muted: var(--ink-muted);
+
+  --color-status-critical: var(--status-critical);
+  --color-status-warning: var(--status-warning);
+  --color-status-good: var(--status-good);
+  --color-status-neutral-bg: var(--status-neutral-bg);
+  --color-status-neutral-fg: var(--status-neutral-fg);
+
+  --color-reach-external: var(--reach-external);
+  --color-reach-internal: var(--reach-internal);
+  --color-reach-inert: var(--reach-inert);
+  --color-reach-unknown: var(--reach-unknown);
+
+  --color-accent: var(--accent);
+  --color-accent-fg: var(--accent-fg);
+}
+
+body {
+  background-color: var(--page);
+  color: var(--ink);
+  font-family:
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    sans-serif;
+}

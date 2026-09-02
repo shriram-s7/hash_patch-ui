@@ -1,0 +1,853 @@
+{
+  "$schema": "http://cyclonedx.org/schema/bom-1.6.schema.json",
+  "bomFormat": "CycloneDX",
+  "components": [
+    {
+      "bom-ref": "crypto-asset:02a75555626eb20d409430884eda91b2",
+      "cryptoProperties": {
+        "algorithmProperties": {
+          "parameterSetIdentifier": "128",
+          "primitive": "hash"
+        },
+        "assetType": "algorithm",
+        "oid": "1.2.840.113549.2.5"
+      },
+      "evidence": {
+        "occurrences": [
+          {
+            "additionalContext": "{\"column\": 13, \"snippet\": \"hashes.MD5()\", \"source_type\": \"source\"}",
+            "line": 48,
+            "location": "testdata\\python\\crypto_pyca.py",
+            "offset": 1556
+          },
+          {
+            "additionalContext": "{\"column\": 8, \"snippet\": \"MD5.new()\", \"source_type\": \"source\"}",
+            "line": 90,
+            "location": "testdata\\python\\crypto_pyca.py",
+            "offset": 2759
+          }
+        ]
+      },
+      "name": "MD5",
+      "properties": [
+        {
+          "name": "pratyaksha:confidence",
+          "value": "confirmed"
+        },
+        {
+          "name": "pratyaksha:detectorId",
+          "value": "python-crypto"
+        },
+        {
+          "name": "pratyaksha:detectorVersion",
+          "value": "0.1.0"
+        },
+        {
+          "name": "pratyaksha:quantumStatus",
+          "value": "broken-classically"
+        },
+        {
+          "name": "pratyaksha:reachability",
+          "value": "unknown"
+        }
+      ],
+      "type": "cryptographic-asset"
+    },
+    {
+      "bom-ref": "crypto-asset:122958edd068fe750b07b79c7b77a3b8",
+      "cryptoProperties": {
+        "algorithmProperties": {
+          "parameterSetIdentifier": "255",
+          "primitive": "key-agree"
+        },
+        "assetType": "algorithm",
+        "oid": "1.3.101.110"
+      },
+      "evidence": {
+        "occurrences": [
+          {
+            "additionalContext": "{\"column\": 11, \"snippet\": \"x25519.generate_key()\", \"source_type\": \"source\"}",
+            "line": 19,
+            "location": "testdata\\python\\test_optimizer_low_value.py",
+            "offset": 821
+          }
+        ]
+      },
+      "name": "X25519",
+      "properties": [
+        {
+          "name": "pratyaksha:confidence",
+          "value": "confirmed"
+        },
+        {
+          "name": "pratyaksha:detectorId",
+          "value": "python-crypto"
+        },
+        {
+          "name": "pratyaksha:detectorVersion",
+          "value": "0.1.0"
+        },
+        {
+          "name": "pratyaksha:quantumStatus",
+          "value": "broken-by-shor"
+        },
+        {
+          "name": "pratyaksha:reachability",
+          "value": "inert"
+        }
+      ],
+      "type": "cryptographic-asset"
+    },
+    {
+      "bom-ref": "crypto-asset:2b23217f4c605672f3ad9c7d021aabde",
+      "cryptoProperties": {
+        "algorithmProperties": {
+          "primitive": "pke"
+        },
+        "assetType": "algorithm",
+        "oid": "1.2.840.113549.1.1.1"
+      },
+      "evidence": {
+        "occurrences": [
+          {
+            "additionalContext": "{\"column\": 18, \"snippet\": \"rsa.generate_private_key(\\n        public_exponent=65537,\\n        key_size=2048,\\n        backend=default_backend(),\\n    )\", \"source_type\": \"source\"}",
+            "line": 22,
+            "location": "testdata\\python\\crypto_pyca.py",
+            "offset": 954
+          },
+          {
+            "additionalContext": "{\"column\": 10, \"snippet\": \"RSA.generate(2048)\", \"source_type\": \"source\"}",
+            "line": 84,
+            "location": "testdata\\python\\crypto_pyca.py",
+            "offset": 2626
+          },
+          {
+            "additionalContext": "{\"column\": 11, \"snippet\": \"rsa.import_public_key(key_data)\", \"source_type\": \"source\"}",
+            "line": 62,
+            "location": "testdata\\python\\optimizer_examples.py",
+            "offset": 3357
+          }
+        ]
+      },
+      "name": "RSA",
+      "properties": [
+        {
+          "name": "pratyaksha:confidence",
+          "value": "confirmed"
+        },
+        {
+          "name": "pratyaksha:detectorId",
+          "value": "python-crypto"
+        },
+        {
+          "name": "pratyaksha:detectorVersion",
+          "value": "0.1.0"
+        },
+        {
+          "name": "pratyaksha:property.shelfLife.aadhaar",
+          "value": "{\"confidence\":\"high\",\"locator\":\"testdata\\\\python\\\\optimizer_examples.py\",\"moscaNote\":\"Data must remain secret until ~2053 based on aadhaar category (27yr shelf-life from scan date).\",\"shelfLifeYears\":27,\"statutoryBasis\":\"DPDP Act 2023 - Aadhaar number is treated as sensitive personal data requiring special handling under Indian data-protection practice (linked to UIDAI-regulated identity infrastructure). No single statute fixes a 27-year retention/secrecy period for Aadhaar-linked records; this is a conservative reasonable-effort default for this demonstration system, NOT a verified legal citation \\u2014 see the file header.\"}"
+        },
+        {
+          "name": "pratyaksha:quantumStatus",
+          "value": "broken-by-shor"
+        },
+        {
+          "name": "pratyaksha:reachability",
+          "value": "live-external"
+        }
+      ],
+      "type": "cryptographic-asset"
+    },
+    {
+      "bom-ref": "crypto-asset:2dd19596406f9c89c0bcfd80388938e6",
+      "cryptoProperties": {
+        "algorithmProperties": {
+          "parameterSetIdentifier": "256",
+          "primitive": "hash"
+        },
+        "assetType": "algorithm",
+        "oid": "2.16.840.1.101.3.4.2.8"
+      },
+      "evidence": {
+        "occurrences": [
+          {
+            "additionalContext": "{\"column\": 13, \"snippet\": \"hashes.SHA3_256()\", \"source_type\": \"source\"}",
+            "line": 16,
+            "location": "testdata\\python\\reachability_live_internal.py",
+            "offset": 588
+          },
+          {
+            "additionalContext": "{\"column\": 17, \"snippet\": \"SHA3_256.new(record_bytes)\", \"source_type\": \"source\"}",
+            "line": 54,
+            "location": "testdata\\python\\shelf_life_examples.py",
+            "offset": 2172
+          }
+        ]
+      },
+      "name": "SHA3-256",
+      "properties": [
+        {
+          "name": "pratyaksha:confidence",
+          "value": "confirmed"
+        },
+        {
+          "name": "pratyaksha:detectorId",
+          "value": "python-crypto"
+        },
+        {
+          "name": "pratyaksha:detectorVersion",
+          "value": "0.1.0"
+        },
+        {
+          "name": "pratyaksha:property.shelfLife.aadhaar",
+          "value": "{\"confidence\":\"high\",\"locator\":\"testdata\\\\python\\\\shelf_life_examples.py\",\"moscaNote\":\"Data must remain secret until ~2053 based on aadhaar category (27yr shelf-life from scan date).\",\"shelfLifeYears\":27,\"statutoryBasis\":\"DPDP Act 2023 - Aadhaar number is treated as sensitive personal data requiring special handling under Indian data-protection practice (linked to UIDAI-regulated identity infrastructure). No single statute fixes a 27-year retention/secrecy period for Aadhaar-linked records; this is a conservative reasonable-effort default for this demonstration system, NOT a verified legal citation \\u2014 see the file header.\"}"
+        },
+        {
+          "name": "pratyaksha:quantumStatus",
+          "value": "weakened-by-grover"
+        },
+        {
+          "name": "pratyaksha:reachability",
+          "value": "live-internal"
+        }
+      ],
+      "type": "cryptographic-asset"
+    },
+    {
+      "bom-ref": "crypto-asset:43881076677c8df2564de0238139b04f",
+      "cryptoProperties": {
+        "algorithmProperties": {
+          "primitive": "block-cipher"
+        },
+        "assetType": "algorithm",
+        "oid": "2.16.840.1.101.3.4.1"
+      },
+      "evidence": {
+        "occurrences": [
+          {
+            "additionalContext": "{\"column\": 8, \"snippet\": \"algorithms.AES(key)\", \"source_type\": \"source\"}",
+            "line": 33,
+            "location": "testdata\\python\\crypto_pyca.py",
+            "offset": 1230
+          },
+          {
+            "additionalContext": "{\"column\": 13, \"snippet\": \"AES.new(key, AES.MODE_GCM)\", \"source_type\": \"source\"}",
+            "line": 78,
+            "location": "testdata\\python\\crypto_pyca.py",
+            "offset": 2488
+          }
+        ]
+      },
+      "name": "AES",
+      "properties": [
+        {
+          "name": "pratyaksha:confidence",
+          "value": "confirmed"
+        },
+        {
+          "name": "pratyaksha:detectorId",
+          "value": "python-crypto"
+        },
+        {
+          "name": "pratyaksha:detectorVersion",
+          "value": "0.1.0"
+        },
+        {
+          "name": "pratyaksha:quantumStatus",
+          "value": "weakened-by-grover"
+        },
+        {
+          "name": "pratyaksha:reachability",
+          "value": "unknown"
+        }
+      ],
+      "type": "cryptographic-asset"
+    },
+    {
+      "bom-ref": "crypto-asset:45ccb45674487af0a38a4b9419e8c70c",
+      "cryptoProperties": {
+        "algorithmProperties": {
+          "parameterSetIdentifier": "256",
+          "primitive": "hash"
+        },
+        "assetType": "algorithm",
+        "oid": "2.16.840.1.101.3.4.2.1"
+      },
+      "evidence": {
+        "occurrences": [
+          {
+            "additionalContext": "{\"column\": 13, \"snippet\": \"hashes.SHA256()\", \"source_type\": \"source\"}",
+            "line": 42,
+            "location": "testdata\\python\\crypto_pyca.py",
+            "offset": 1431
+          },
+          {
+            "additionalContext": "{\"column\": 13, \"snippet\": \"SHA256.new(aadhaar_bytes)\", \"source_type\": \"source\"}",
+            "line": 39,
+            "location": "testdata\\python\\shelf_life_examples.py",
+            "offset": 1860
+          }
+        ]
+      },
+      "name": "SHA-256",
+      "properties": [
+        {
+          "name": "pratyaksha:confidence",
+          "value": "confirmed"
+        },
+        {
+          "name": "pratyaksha:detectorId",
+          "value": "python-crypto"
+        },
+        {
+          "name": "pratyaksha:detectorVersion",
+          "value": "0.1.0"
+        },
+        {
+          "name": "pratyaksha:property.shelfLife.aadhaar",
+          "value": "{\"confidence\":\"high\",\"locator\":\"testdata\\\\python\\\\shelf_life_examples.py\",\"moscaNote\":\"Data must remain secret until ~2053 based on aadhaar category (27yr shelf-life from scan date).\",\"shelfLifeYears\":27,\"statutoryBasis\":\"DPDP Act 2023 - Aadhaar number is treated as sensitive personal data requiring special handling under Indian data-protection practice (linked to UIDAI-regulated identity infrastructure). No single statute fixes a 27-year retention/secrecy period for Aadhaar-linked records; this is a conservative reasonable-effort default for this demonstration system, NOT a verified legal citation \\u2014 see the file header.\"}"
+        },
+        {
+          "name": "pratyaksha:quantumStatus",
+          "value": "weakened-by-grover"
+        },
+        {
+          "name": "pratyaksha:reachability",
+          "value": "unknown"
+        }
+      ],
+      "type": "cryptographic-asset"
+    },
+    {
+      "bom-ref": "crypto-asset:5a2983fc716a6a723fdbf3ce0679f465",
+      "cryptoProperties": {
+        "algorithmProperties": {
+          "parameterSetIdentifier": "160",
+          "primitive": "hash"
+        },
+        "assetType": "algorithm",
+        "oid": "1.3.14.3.2.26"
+      },
+      "evidence": {
+        "occurrences": [
+          {
+            "additionalContext": "{\"column\": 13, \"snippet\": \"hashes.SHA1()\", \"source_type\": \"source\"}",
+            "line": 54,
+            "location": "testdata\\python\\crypto_pyca.py",
+            "offset": 1681
+          }
+        ]
+      },
+      "name": "SHA-1",
+      "properties": [
+        {
+          "name": "pratyaksha:confidence",
+          "value": "confirmed"
+        },
+        {
+          "name": "pratyaksha:detectorId",
+          "value": "python-crypto"
+        },
+        {
+          "name": "pratyaksha:detectorVersion",
+          "value": "0.1.0"
+        },
+        {
+          "name": "pratyaksha:quantumStatus",
+          "value": "broken-classically"
+        },
+        {
+          "name": "pratyaksha:reachability",
+          "value": "unknown"
+        }
+      ],
+      "type": "cryptographic-asset"
+    },
+    {
+      "bom-ref": "crypto-asset:63afb3721cdd408a1340e4666e70ad6e",
+      "cryptoProperties": {
+        "algorithmProperties": {
+          "parameterSetIdentifier": "512",
+          "primitive": "hash"
+        },
+        "assetType": "algorithm",
+        "oid": "2.16.840.1.101.3.4.2.3"
+      },
+      "evidence": {
+        "occurrences": [
+          {
+            "additionalContext": "{\"column\": 13, \"snippet\": \"hashes.SHA512()\", \"source_type\": \"source\"}",
+            "line": 17,
+            "location": "testdata\\python\\reachability_live_external.py",
+            "offset": 526
+          },
+          {
+            "additionalContext": "{\"column\": 13, \"snippet\": \"SHA512.new(temp_cache_value)\", \"source_type\": \"source\"}",
+            "line": 44,
+            "location": "testdata\\python\\shelf_life_examples.py",
+            "offset": 1971
+          }
+        ]
+      },
+      "name": "SHA-512",
+      "properties": [
+        {
+          "name": "pratyaksha:confidence",
+          "value": "confirmed"
+        },
+        {
+          "name": "pratyaksha:detectorId",
+          "value": "python-crypto"
+        },
+        {
+          "name": "pratyaksha:detectorVersion",
+          "value": "0.1.0"
+        },
+        {
+          "name": "pratyaksha:quantumStatus",
+          "value": "weakened-by-grover"
+        },
+        {
+          "name": "pratyaksha:reachability",
+          "value": "live-external"
+        }
+      ],
+      "type": "cryptographic-asset"
+    },
+    {
+      "bom-ref": "crypto-asset:7495455f4b55976f6cc9274640f9ce0d",
+      "cryptoProperties": {
+        "algorithmProperties": {
+          "primitive": "signature"
+        },
+        "assetType": "algorithm",
+        "oid": "1.2.840.10040.4.1"
+      },
+      "evidence": {
+        "occurrences": [
+          {
+            "additionalContext": "{\"column\": 11, \"snippet\": \"dsa.generate_private_key(key_size=2048, backend=backend)\", \"source_type\": \"source\"}",
+            "line": 72,
+            "location": "testdata\\python\\optimizer_examples.py",
+            "offset": 3591
+          }
+        ]
+      },
+      "name": "DSA",
+      "properties": [
+        {
+          "name": "pratyaksha:confidence",
+          "value": "confirmed"
+        },
+        {
+          "name": "pratyaksha:detectorId",
+          "value": "python-crypto"
+        },
+        {
+          "name": "pratyaksha:detectorVersion",
+          "value": "0.1.0"
+        },
+        {
+          "name": "pratyaksha:property.shelfLife.credentials",
+          "value": "{\"confidence\":\"medium\",\"locator\":\"testdata\\\\python\\\\optimizer_examples.py\",\"moscaNote\":\"Data must remain secret until ~2027 based on credentials category (1yr shelf-life from scan date).\",\"shelfLifeYears\":1,\"statutoryBasis\":\"Not a data-retention-law concept at all \\u2014 a credential's real \\\"shelf-life\\\" is \\\"until rotated\\\", not a fixed calendar duration. 1 year is a short, conservative engineering placeholder standing in for \\\"this should already be rotated well before any quantum-computing horizon matters\\\", not a legal citation of any kind \\u2014 see the file header and docs/SHELF_LIFE.md.\"}"
+        },
+        {
+          "name": "pratyaksha:quantumStatus",
+          "value": "broken-by-shor"
+        },
+        {
+          "name": "pratyaksha:reachability",
+          "value": "live-external"
+        }
+      ],
+      "type": "cryptographic-asset"
+    },
+    {
+      "bom-ref": "crypto-asset:7d57e2043822a305f8357be8fa1e756f",
+      "cryptoProperties": {
+        "algorithmProperties": {
+          "parameterSetIdentifier": "448",
+          "primitive": "signature"
+        },
+        "assetType": "algorithm",
+        "oid": "1.3.101.113"
+      },
+      "evidence": {
+        "occurrences": [
+          {
+            "additionalContext": "{\"column\": 11, \"snippet\": \"ed448.generate()\", \"source_type\": \"source\"}",
+            "line": 77,
+            "location": "testdata\\python\\optimizer_examples.py",
+            "offset": 3740
+          }
+        ]
+      },
+      "name": "Ed448",
+      "properties": [
+        {
+          "name": "pratyaksha:confidence",
+          "value": "confirmed"
+        },
+        {
+          "name": "pratyaksha:detectorId",
+          "value": "python-crypto"
+        },
+        {
+          "name": "pratyaksha:detectorVersion",
+          "value": "0.1.0"
+        },
+        {
+          "name": "pratyaksha:property.shelfLife.credentials",
+          "value": "{\"confidence\":\"medium\",\"locator\":\"testdata\\\\python\\\\optimizer_examples.py\",\"moscaNote\":\"Data must remain secret until ~2027 based on credentials category (1yr shelf-life from scan date).\",\"shelfLifeYears\":1,\"statutoryBasis\":\"Not a data-retention-law concept at all \\u2014 a credential's real \\\"shelf-life\\\" is \\\"until rotated\\\", not a fixed calendar duration. 1 year is a short, conservative engineering placeholder standing in for \\\"this should already be rotated well before any quantum-computing horizon matters\\\", not a legal citation of any kind \\u2014 see the file header and docs/SHELF_LIFE.md.\"}"
+        },
+        {
+          "name": "pratyaksha:quantumStatus",
+          "value": "broken-by-shor"
+        },
+        {
+          "name": "pratyaksha:reachability",
+          "value": "live-external"
+        }
+      ],
+      "type": "cryptographic-asset"
+    },
+    {
+      "bom-ref": "crypto-asset:80abd028190c5b2c55efc39eabab202e",
+      "cryptoProperties": {
+        "algorithmProperties": {
+          "primitive": "pke"
+        },
+        "assetType": "algorithm"
+      },
+      "evidence": {
+        "occurrences": [
+          {
+            "additionalContext": "{\"column\": 10, \"snippet\": \"ElGamal.generate(2048, None)\", \"source_type\": \"source\"}",
+            "line": 16,
+            "location": "testdata\\python\\reachability_inert.py",
+            "offset": 531
+          }
+        ]
+      },
+      "name": "ElGamal",
+      "properties": [
+        {
+          "name": "pratyaksha:confidence",
+          "value": "confirmed"
+        },
+        {
+          "name": "pratyaksha:detectorId",
+          "value": "python-crypto"
+        },
+        {
+          "name": "pratyaksha:detectorVersion",
+          "value": "0.1.0"
+        },
+        {
+          "name": "pratyaksha:quantumStatus",
+          "value": "broken-by-shor"
+        },
+        {
+          "name": "pratyaksha:reachability",
+          "value": "inert"
+        }
+      ],
+      "type": "cryptographic-asset"
+    },
+    {
+      "bom-ref": "crypto-asset:b51a6578a57c56a2c6a54e012b69726d",
+      "cryptoProperties": {
+        "algorithmProperties": {
+          "parameterSetIdentifier": "448",
+          "primitive": "key-agree"
+        },
+        "assetType": "algorithm",
+        "oid": "1.3.101.111"
+      },
+      "evidence": {
+        "occurrences": [
+          {
+            "additionalContext": "{\"column\": 11, \"snippet\": \"x448.generate_key()\", \"source_type\": \"source\"}",
+            "line": 67,
+            "location": "testdata\\python\\optimizer_examples.py",
+            "offset": 3482
+          }
+        ]
+      },
+      "name": "X448",
+      "properties": [
+        {
+          "name": "pratyaksha:confidence",
+          "value": "confirmed"
+        },
+        {
+          "name": "pratyaksha:detectorId",
+          "value": "python-crypto"
+        },
+        {
+          "name": "pratyaksha:detectorVersion",
+          "value": "0.1.0"
+        },
+        {
+          "name": "pratyaksha:property.shelfLife.biometric",
+          "value": "{\"confidence\":\"high\",\"locator\":\"testdata\\\\python\\\\optimizer_examples.py\",\"moscaNote\":\"Data must remain secret until ~2076 based on biometric category (50yr shelf-life from scan date).\",\"shelfLifeYears\":50,\"statutoryBasis\":\"DPDP Act 2023 - biometric data is explicitly listed as sensitive personal data. Treated here as near-permanent (a person's biometric traits generally do not change across a lifetime, unlike a rotatable credential), so this uses a deliberately long, conservative default rather than a shorter one. NOT a verified legal citation \\u2014 see the file header.\"}"
+        },
+        {
+          "name": "pratyaksha:quantumStatus",
+          "value": "broken-by-shor"
+        },
+        {
+          "name": "pratyaksha:reachability",
+          "value": "live-external"
+        }
+      ],
+      "type": "cryptographic-asset"
+    },
+    {
+      "bom-ref": "crypto-asset:c76b1fae5db7a939ad244178b109b600",
+      "cryptoProperties": {
+        "algorithmProperties": {
+          "primitive": "key-agree"
+        },
+        "assetType": "algorithm",
+        "oid": "1.2.840.113549.1.3.1"
+      },
+      "evidence": {
+        "occurrences": [
+          {
+            "additionalContext": "{\"column\": 11, \"snippet\": \"dh.generate_private_key(parameters)\", \"source_type\": \"source\"}",
+            "line": 82,
+            "location": "testdata\\python\\optimizer_examples.py",
+            "offset": 3861
+          }
+        ]
+      },
+      "name": "DH",
+      "properties": [
+        {
+          "name": "pratyaksha:confidence",
+          "value": "confirmed"
+        },
+        {
+          "name": "pratyaksha:detectorId",
+          "value": "python-crypto"
+        },
+        {
+          "name": "pratyaksha:detectorVersion",
+          "value": "0.1.0"
+        },
+        {
+          "name": "pratyaksha:property.shelfLife.credentials",
+          "value": "{\"confidence\":\"medium\",\"locator\":\"testdata\\\\python\\\\optimizer_examples.py\",\"moscaNote\":\"Data must remain secret until ~2027 based on credentials category (1yr shelf-life from scan date).\",\"shelfLifeYears\":1,\"statutoryBasis\":\"Not a data-retention-law concept at all \\u2014 a credential's real \\\"shelf-life\\\" is \\\"until rotated\\\", not a fixed calendar duration. 1 year is a short, conservative engineering placeholder standing in for \\\"this should already be rotated well before any quantum-computing horizon matters\\\", not a legal citation of any kind \\u2014 see the file header and docs/SHELF_LIFE.md.\"}"
+        },
+        {
+          "name": "pratyaksha:quantumStatus",
+          "value": "broken-by-shor"
+        },
+        {
+          "name": "pratyaksha:reachability",
+          "value": "live-external"
+        }
+      ],
+      "type": "cryptographic-asset"
+    },
+    {
+      "bom-ref": "crypto-asset:ceb79c3e76c665c82bb691213d28be19",
+      "cryptoProperties": {
+        "algorithmProperties": {
+          "parameterSetIdentifier": "256",
+          "primitive": "stream-cipher"
+        },
+        "assetType": "algorithm"
+      },
+      "evidence": {
+        "occurrences": [
+          {
+            "additionalContext": "{\"column\": 13, \"snippet\": \"ChaCha20.new(key=b\\\"0\\\" * 32)\", \"source_type\": \"source\"}",
+            "line": 23,
+            "location": "testdata\\python\\reachability_unknown_dynamic.py",
+            "offset": 972
+          }
+        ]
+      },
+      "name": "ChaCha20",
+      "properties": [
+        {
+          "name": "pratyaksha:confidence",
+          "value": "confirmed"
+        },
+        {
+          "name": "pratyaksha:detectorId",
+          "value": "python-crypto"
+        },
+        {
+          "name": "pratyaksha:detectorVersion",
+          "value": "0.1.0"
+        },
+        {
+          "name": "pratyaksha:quantumStatus",
+          "value": "weakened-by-grover"
+        },
+        {
+          "name": "pratyaksha:reachability",
+          "value": "unknown"
+        }
+      ],
+      "type": "cryptographic-asset"
+    },
+    {
+      "bom-ref": "crypto-asset:da0ea15be9f63a597830b2141f2f9d74",
+      "cryptoProperties": {
+        "algorithmProperties": {
+          "parameterSetIdentifier": "256",
+          "primitive": "signature"
+        },
+        "assetType": "algorithm",
+        "oid": "1.2.840.10045.3.1.7"
+      },
+      "evidence": {
+        "occurrences": [
+          {
+            "additionalContext": "{\"column\": 8, \"snippet\": \"ec.SECP256R1()\", \"source_type\": \"source\"}",
+            "line": 61,
+            "location": "testdata\\python\\crypto_pyca.py",
+            "offset": 1860
+          }
+        ]
+      },
+      "name": "ECDSA",
+      "properties": [
+        {
+          "name": "pratyaksha:confidence",
+          "value": "confirmed"
+        },
+        {
+          "name": "pratyaksha:detectorId",
+          "value": "python-crypto"
+        },
+        {
+          "name": "pratyaksha:detectorVersion",
+          "value": "0.1.0"
+        },
+        {
+          "name": "pratyaksha:quantumStatus",
+          "value": "broken-by-shor"
+        },
+        {
+          "name": "pratyaksha:reachability",
+          "value": "unknown"
+        }
+      ],
+      "type": "cryptographic-asset"
+    },
+    {
+      "bom-ref": "crypto-asset:e5bcd1ead55f50ea14953af1d9165643",
+      "cryptoProperties": {
+        "algorithmProperties": {
+          "primitive": "signature"
+        },
+        "assetType": "algorithm",
+        "oid": "1.2.840.10045.4.3.2"
+      },
+      "evidence": {
+        "occurrences": [
+          {
+            "additionalContext": "{\"column\": 18, \"snippet\": \"ec.generate_private_key(\\n        ec.SECP256R1(),\\n        backend=default_backend(),\\n    )\", \"source_type\": \"source\"}",
+            "line": 60,
+            "location": "testdata\\python\\crypto_pyca.py",
+            "offset": 1827
+          }
+        ]
+      },
+      "name": "ECDSA",
+      "properties": [
+        {
+          "name": "pratyaksha:confidence",
+          "value": "confirmed"
+        },
+        {
+          "name": "pratyaksha:detectorId",
+          "value": "python-crypto"
+        },
+        {
+          "name": "pratyaksha:detectorVersion",
+          "value": "0.1.0"
+        },
+        {
+          "name": "pratyaksha:quantumStatus",
+          "value": "broken-by-shor"
+        },
+        {
+          "name": "pratyaksha:reachability",
+          "value": "unknown"
+        }
+      ],
+      "type": "cryptographic-asset"
+    }
+  ],
+  "dependencies": [
+    {
+      "ref": "crypto-asset:02a75555626eb20d409430884eda91b2"
+    },
+    {
+      "ref": "crypto-asset:122958edd068fe750b07b79c7b77a3b8"
+    },
+    {
+      "ref": "crypto-asset:2b23217f4c605672f3ad9c7d021aabde"
+    },
+    {
+      "ref": "crypto-asset:2dd19596406f9c89c0bcfd80388938e6"
+    },
+    {
+      "ref": "crypto-asset:43881076677c8df2564de0238139b04f"
+    },
+    {
+      "ref": "crypto-asset:45ccb45674487af0a38a4b9419e8c70c"
+    },
+    {
+      "ref": "crypto-asset:5a2983fc716a6a723fdbf3ce0679f465"
+    },
+    {
+      "ref": "crypto-asset:63afb3721cdd408a1340e4666e70ad6e"
+    },
+    {
+      "ref": "crypto-asset:7495455f4b55976f6cc9274640f9ce0d"
+    },
+    {
+      "ref": "crypto-asset:7d57e2043822a305f8357be8fa1e756f"
+    },
+    {
+      "ref": "crypto-asset:80abd028190c5b2c55efc39eabab202e"
+    },
+    {
+      "ref": "crypto-asset:b51a6578a57c56a2c6a54e012b69726d"
+    },
+    {
+      "ref": "crypto-asset:c76b1fae5db7a939ad244178b109b600"
+    },
+    {
+      "ref": "crypto-asset:ceb79c3e76c665c82bb691213d28be19"
+    },
+    {
+      "ref": "crypto-asset:da0ea15be9f63a597830b2141f2f9d74"
+    },
+    {
+      "ref": "crypto-asset:e5bcd1ead55f50ea14953af1d9165643"
+    }
+  ],
+  "metadata": {
+    "timestamp": "2026-09-02T09:54:49.006327+00:00",
+    "tools": {
+      "components": [
+        {
+          "name": "PRATYAKSHA",
+          "type": "application",
+          "version": "0.1.0"
+        }
+      ]
+    }
+  },
+  "serialNumber": "urn:uuid:3b3eb7bf-b071-55c3-9c84-5aab0b58e3c1",
+  "specVersion": "1.6",
+  "version": 1
+}

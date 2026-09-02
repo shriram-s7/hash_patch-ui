@@ -1,0 +1,252 @@
+{
+  "metadata": {
+    "python_version": "3.12.6",
+    "cryptography_version": "50.0.1",
+    "platform": "Windows 11 (AMD64)",
+    "processor": "Intel64 Family 6 Model 151 Stepping 2, GenuineIntel",
+    "timestamp": "2026-09-02T09:54:52.499894Z",
+    "iterations": 10,
+    "warmup_iterations": 5
+  },
+  "results": [
+    {
+      "algorithm": "ML-DSA-44",
+      "standard": "FIPS 204",
+      "primitive_family": "signature",
+      "nist_security_level": 2,
+      "is_pqc": true,
+      "timings": {
+        "keygen": {
+          "min_ms": 0.1294,
+          "p50_ms": 0.1348,
+          "p95_ms": 0.29,
+          "max_ms": 0.29
+        },
+        "sign": {
+          "min_ms": 0.2712,
+          "p50_ms": 0.7077,
+          "p95_ms": 2.8175,
+          "max_ms": 2.8175
+        },
+        "verify": {
+          "min_ms": 0.1354,
+          "p50_ms": 0.1394,
+          "p95_ms": 0.1542,
+          "max_ms": 0.1542
+        }
+      },
+      "byte_sizes": {
+        "public_key_bytes": 1312,
+        "private_key_bytes": 32,
+        "signature_bytes": 2420,
+        "ciphertext_bytes": null,
+        "shared_secret_bytes": null
+      }
+    },
+    {
+      "algorithm": "ML-DSA-65",
+      "standard": "FIPS 204",
+      "primitive_family": "signature",
+      "nist_security_level": 3,
+      "is_pqc": true,
+      "timings": {
+        "keygen": {
+          "min_ms": 0.2313,
+          "p50_ms": 0.3143,
+          "p95_ms": 0.3479,
+          "max_ms": 0.3479
+        },
+        "sign": {
+          "min_ms": 0.5396,
+          "p50_ms": 1.3761,
+          "p95_ms": 3.718,
+          "max_ms": 3.718
+        },
+        "verify": {
+          "min_ms": 0.2515,
+          "p50_ms": 0.2827,
+          "p95_ms": 0.3194,
+          "max_ms": 0.3194
+        }
+      },
+      "byte_sizes": {
+        "public_key_bytes": 1952,
+        "private_key_bytes": 32,
+        "signature_bytes": 3309,
+        "ciphertext_bytes": null,
+        "shared_secret_bytes": null
+      }
+    },
+    {
+      "algorithm": "ML-DSA-87",
+      "standard": "FIPS 204",
+      "primitive_family": "signature",
+      "nist_security_level": 5,
+      "is_pqc": true,
+      "timings": {
+        "keygen": {
+          "min_ms": 0.3087,
+          "p50_ms": 0.3218,
+          "p95_ms": 0.4315,
+          "max_ms": 0.4315
+        },
+        "sign": {
+          "min_ms": 0.5626,
+          "p50_ms": 0.9357,
+          "p95_ms": 4.0679,
+          "max_ms": 4.0679
+        },
+        "verify": {
+          "min_ms": 0.3206,
+          "p50_ms": 0.3279,
+          "p95_ms": 0.4134,
+          "max_ms": 0.4134
+        }
+      },
+      "byte_sizes": {
+        "public_key_bytes": 2592,
+        "private_key_bytes": 32,
+        "signature_bytes": 4627,
+        "ciphertext_bytes": null,
+        "shared_secret_bytes": null
+      }
+    },
+    {
+      "algorithm": "ML-KEM-768",
+      "standard": "FIPS 203",
+      "primitive_family": "key_agreement_or_pke",
+      "nist_security_level": 3,
+      "is_pqc": true,
+      "timings": {
+        "keygen": {
+          "min_ms": 0.1977,
+          "p50_ms": 0.199,
+          "p95_ms": 0.2048,
+          "max_ms": 0.2048
+        },
+        "encapsulate": {
+          "min_ms": 0.0515,
+          "p50_ms": 0.052,
+          "p95_ms": 0.0526,
+          "max_ms": 0.0526
+        },
+        "decapsulate": {
+          "min_ms": 0.077,
+          "p50_ms": 0.0774,
+          "p95_ms": 0.0886,
+          "max_ms": 0.0886
+        }
+      },
+      "byte_sizes": {
+        "public_key_bytes": 1184,
+        "private_key_bytes": 64,
+        "signature_bytes": null,
+        "ciphertext_bytes": 1088,
+        "shared_secret_bytes": 32
+      }
+    },
+    {
+      "algorithm": "ML-KEM-1024",
+      "standard": "FIPS 203",
+      "primitive_family": "key_agreement_or_pke",
+      "nist_security_level": 5,
+      "is_pqc": true,
+      "timings": {
+        "keygen": {
+          "min_ms": 0.2743,
+          "p50_ms": 0.2824,
+          "p95_ms": 0.2885,
+          "max_ms": 0.2885
+        },
+        "encapsulate": {
+          "min_ms": 0.0697,
+          "p50_ms": 0.0701,
+          "p95_ms": 0.0754,
+          "max_ms": 0.0754
+        },
+        "decapsulate": {
+          "min_ms": 0.1024,
+          "p50_ms": 0.1028,
+          "p95_ms": 0.1125,
+          "max_ms": 0.1125
+        }
+      },
+      "byte_sizes": {
+        "public_key_bytes": 1568,
+        "private_key_bytes": 64,
+        "signature_bytes": null,
+        "ciphertext_bytes": 1568,
+        "shared_secret_bytes": 32
+      }
+    },
+    {
+      "algorithm": "RSA-2048",
+      "standard": "PKCS#1 v2.2",
+      "primitive_family": "signature",
+      "nist_security_level": 1,
+      "is_pqc": false,
+      "timings": {
+        "keygen": {
+          "min_ms": 36.4237,
+          "p50_ms": 50.0889,
+          "p95_ms": 75.4082,
+          "max_ms": 75.4082
+        },
+        "sign": {
+          "min_ms": 1.2702,
+          "p50_ms": 1.3714,
+          "p95_ms": 1.9409,
+          "max_ms": 1.9409
+        },
+        "verify": {
+          "min_ms": 0.0516,
+          "p50_ms": 0.0611,
+          "p95_ms": 0.0854,
+          "max_ms": 0.0854
+        }
+      },
+      "byte_sizes": {
+        "public_key_bytes": 294,
+        "private_key_bytes": 1218,
+        "signature_bytes": 256,
+        "ciphertext_bytes": null,
+        "shared_secret_bytes": null
+      }
+    },
+    {
+      "algorithm": "ECDSA-P256",
+      "standard": "ANSI X9.62",
+      "primitive_family": "signature",
+      "nist_security_level": 1,
+      "is_pqc": false,
+      "timings": {
+        "keygen": {
+          "min_ms": 0.0218,
+          "p50_ms": 0.0221,
+          "p95_ms": 0.0236,
+          "max_ms": 0.0236
+        },
+        "sign": {
+          "min_ms": 0.0426,
+          "p50_ms": 0.0432,
+          "p95_ms": 0.0444,
+          "max_ms": 0.0444
+        },
+        "verify": {
+          "min_ms": 0.0976,
+          "p50_ms": 0.0983,
+          "p95_ms": 0.0991,
+          "max_ms": 0.0991
+        }
+      },
+      "byte_sizes": {
+        "public_key_bytes": 91,
+        "private_key_bytes": 138,
+        "signature_bytes": 71,
+        "ciphertext_bytes": null,
+        "shared_secret_bytes": null
+      }
+    }
+  ],
+  "disclaimer": "Single-machine development measurement on local hardware. These figures characterise relative performance and byte-size scaling, not an absolute SLA guarantee. Production deployments should re-run this benchmark on target hardware."
+}
