@@ -2,80 +2,113 @@
 
 /* Manual dark-mode toggle: a `.dark` class on <html> (set by index.html's
    pre-paint inline script and src/theme.ts) wins over `dark:` utilities,
-   instead of Tailwind's default bare `prefers-color-scheme` strategy. */
+   instead of Tailwind's default bare `prefers-color-scheme` strategy.
+   Dark is the default experience ("Deep Scan") — the pre-paint script
+   applies `.dark` whenever there is no stored preference, regardless of
+   OS setting. Light exists only so the toggle has somewhere to go. */
 @custom-variant dark (&:where(.dark, .dark *));
 
 /* ---------------------------------------------------------------------
  * Design tokens. Every color used anywhere in the app is one of these
  * CSS variables, defined in exactly two places (light block, dark
- * block) — no component file ever writes a raw hex value. Base UI
- * chrome (surface/ink/line) and the semantic quantum-status colors come
- * from the dataviz skill's validated, contrast-checked status palette
- * (references/palette.md); reachability uses a couple of its
- * categorical slots, deliberately NOT reused from the status palette,
- * so the two badge systems never collide by hue when they sit side by
- * side in the same table row.
+ * block) — no component file ever writes a raw hex value.
  *
- * Names are chosen so the Tailwind utilities they generate below
- * (`bg-page`, `text-ink`, `border-line`, ...) read cleanly — a token
- * is never named after the utility prefix it will sit behind.
+ * "Deep Scan" palette: a near-black desaturated graphite/navy base with
+ * layered surface levels, one cold-cyan signal color reserved for
+ * structure/interactivity, and the quantum-status hues carried over
+ * unchanged in meaning from the original palette (only exact shades
+ * retuned to sit correctly against the new, much darker background —
+ * verified with the dataviz skill's contrast/CVD validator; see the
+ * shade notes below each block).
  * ------------------------------------------------------------------- */
 :root {
   color-scheme: light;
 
   /* Chrome */
-  --page: #f9f9f7;
-  --surface: #fcfcfb;
-  --surface-raised: #ffffff;
-  --line: rgba(11, 11, 11, 0.1);
-  --ink: #0b0b0b;
-  --ink-secondary: #52514e;
-  --ink-muted: #898781;
+  --page: #f7f8f7;
+  --surface: #ffffff;
+  --surface-2: #eef0ef;
+  --line: rgba(10, 14, 20, 0.12);
+  --line-strong: rgba(10, 14, 20, 0.22);
+  --ink: #0b0e13;
+  --ink-secondary: #4b5563;
+  --ink-muted: #71839a;
 
-  /* Status palette (quantum status) — fixed, mode-invariant hex, never
-     reused for anything but these four roles. */
-  --status-critical: #d03b3b; /* broken-by-shor */
-  --status-warning: #fab219; /* weakened-by-grover */
-  --status-good: #0ca30c; /* quantum-safe */
-  --status-neutral-bg: #e1e0d9; /* broken-classically / unknown chip bg */
-  --status-neutral-fg: #52514e; /* broken-classically / unknown chip text */
+  /* Status palette (quantum status) — semantics fixed: critical =
+     broken-by-shor, warning = weakened-by-grover, good = quantum-safe,
+     neutral = broken-classically / unknown (explicitly non-alarming). */
+  --status-critical: #d03b3b;
+  --status-warning: #fab219;
+  --status-good: #0ca30c;
+  --status-neutral-bg: #e1e0d9;
+  --status-neutral-fg: #52514e;
+  /* Fixed dark ink for text on the light amber warning fill — intentionally
+     NOT `--ink` (which flips light in dark mode and would go unreadable on
+     the still-light amber background). Same value in both themes, so it is
+     defined once here and never overridden in .dark. */
+  --status-warning-fg: #1a1400;
 
-  /* Reachability — categorical slots 7 (violet) & 1 (blue), distinct
-     from the status palette above. */
-  --reach-external: #4a3aa7; /* live-external, solid */
-  --reach-internal: #2a78d6; /* live-internal, solid */
-  --reach-inert: #898781; /* inert, gray outline */
-  --reach-unknown: #1baf7a; /* unknown, teal outline — must never match inert */
+  /* Reachability — solid fills for confirmed-live, outlines for
+     inert/unknown. Distinct hues from the status palette above. */
+  --reach-external: #4a3aa7;
+  --reach-internal: #2a78d6;
+  --reach-inert: #71839a;
+  --reach-unknown: #1baf7a;
 
-  /* Accent (interactive elements: buttons, links, focus rings) */
-  --accent: #2a78d6;
+  /* Signal accent — the one structural/interactive color. */
+  --accent: #0e7490;
   --accent-fg: #ffffff;
 }
 
 .dark {
   color-scheme: dark;
 
-  --page: #0d0d0d;
-  --surface: #1a1a19;
-  --surface-raised: #232322;
-  --line: rgba(255, 255, 255, 0.1);
-  --ink: #ffffff;
-  --ink-secondary: #c3c2b7;
-  --ink-muted: #898781;
+  /* Near-black desaturated navy/graphite, not pure black, with three
+     lifted surface levels so panels read as instrument bezels rather
+     than flat cutouts. */
+  --page: #0a0e14;
+  --surface: #10151d;
+  --surface-2: #161d28;
+  --line: #212a38;
+  --line-strong: #2c3646;
+  --ink: #e7ecf3;
+  --ink-secondary: #93a1b5;
+  --ink-muted: #6b7d94;
 
+  /* Same hues as light mode, shades retuned for the darker surface:
+     critical/warning unchanged (already >=4.5:1 on white text and CVD
+     PASS at this exact value); good darkened #0ca30c -> #0c8a0c (white
+     text on #0ca30c was 3.35:1, fails small-text WCAG — #0c8a0c clears
+     4.5:1); neutral bg/fg moved onto the new graphite family instead of
+     the old warm gray. Validated via
+     dataviz/scripts/validate_palette.js "#d03b3b,#fab219,#0c8a0c,#93a1b5"
+     --mode dark --surface "#0a0e14": CVD separation, normal-vision
+     floor and contrast all PASS. (The tool's categorical "lightness
+     band" and "chroma floor" checks fail for #fab219 and the
+     intentionally-desaturated neutral gray respectively — expected and
+     accepted: that heuristic is scoped to multi-hue categorical chart
+     palettes, not a 4-state status system where one state must read as
+     "off"/non-alarming gray, and every badge still carries a text label
+     alongside the color per the skill's own secondary-encoding
+     allowance.) */
   --status-critical: #d03b3b;
   --status-warning: #fab219;
-  --status-good: #0ca30c;
-  --status-neutral-bg: #2c2c2a;
-  --status-neutral-fg: #c3c2b7;
+  --status-good: #0c8a0c;
+  --status-neutral-bg: #1c2531;
+  --status-neutral-fg: #93a1b5;
 
-  --reach-external: #9085e9;
-  --reach-internal: #3987e5;
-  --reach-inert: #898781;
-  --reach-unknown: #199e70;
+  /* Reachability fills darkened from the previous dark-mode values so
+     white badge text clears 4.5:1 (was 3.13/3.64:1 vs white). */
+  --reach-external: #6e5fd6;
+  --reach-internal: #2f6fc7;
+  --reach-inert: #6b7d94;
+  --reach-unknown: #1fae7a;
 
-  --accent: #3987e5;
-  --accent-fg: #0b0b0b;
+  /* Cold cyan signal color — reserved for structure/interactivity
+     (links, active states, the mode switcher, the live indicator).
+     10.7:1 against --page; dark text (not white) on accent fills. */
+  --accent: #22d3ee;
+  --accent-fg: #06222a;
 }
 
 /* Bridge the CSS-variable tokens into Tailwind's utility system (v4
@@ -84,8 +117,9 @@
 @theme inline {
   --color-page: var(--page);
   --color-surface: var(--surface);
-  --color-surface-raised: var(--surface-raised);
+  --color-surface-2: var(--surface-2);
   --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
   --color-ink: var(--ink);
   --color-ink-secondary: var(--ink-secondary);
   --color-ink-muted: var(--ink-muted);
@@ -95,6 +129,7 @@
   --color-status-good: var(--status-good);
   --color-status-neutral-bg: var(--status-neutral-bg);
   --color-status-neutral-fg: var(--status-neutral-fg);
+  --color-status-warning-fg: var(--status-warning-fg);
 
   --color-reach-external: var(--reach-external);
   --color-reach-internal: var(--reach-internal);
@@ -103,14 +138,109 @@
 
   --color-accent: var(--accent);
   --color-accent-fg: var(--accent-fg);
+
+  /* Typography: monospace for anything evidentiary (file paths, line
+     numbers, hashes, code, raw values); humanist sans for everything
+     else (labels, headings, body copy). Never mixed ad hoc — components
+     use font-mono / font-sans (the Tailwind default) per this rule. */
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
 }
 
 body {
   background-color: var(--page);
   color: var(--ink);
-  font-family:
-    system-ui,
-    -apple-system,
-    "Segoe UI",
-    sans-serif;
+  font-family: var(--font-sans);
+}
+
+/* Row entrance animation (data load only — hover states stay instant,
+   no transition). Respects reduced-motion. */
+@keyframes row-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-row-in {
+  animation: row-in 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Live/scanning indicator — the one deliberate, sparing use of glow in
+   the whole app. */
+@keyframes signal-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 0%, transparent);
+  }
+}
+
+.animate-signal-pulse {
+  animation: signal-pulse 2s ease-out infinite;
+}
+
+/* Mode-switch transition — a brief entrance fade/slide on the incoming
+   mode's content (applied via `key={mode}` so React remounts it), so
+   switching modes never reads as a hard instant cut. */
+@keyframes mode-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-mode-in {
+  animation: mode-in 180ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Blast Radius: the overflow segment pulses to read as "still growing /
+   still a problem" — distinct from the steady signal-pulse glow. */
+@keyframes overflow-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+.animate-overflow-pulse {
+  animation: overflow-pulse 1.1s ease-in-out infinite;
+}
+
+/* Verify mode: a one-shot flash on the hash text whenever it changes
+   (recomputed after a tamper), remounted via a `key` on the value. */
+@keyframes hash-flash {
+  from {
+    background-color: color-mix(in srgb, var(--accent) 35%, transparent);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+
+.animate-hash-flash {
+  animation: hash-flash 500ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-row-in,
+  .animate-signal-pulse,
+  .animate-mode-in,
+  .animate-overflow-pulse,
+  .animate-hash-flash {
+    animation: none;
+  }
 }

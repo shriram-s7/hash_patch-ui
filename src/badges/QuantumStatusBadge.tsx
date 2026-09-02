@@ -16,20 +16,29 @@ const LABEL: Record<QuantumStatus, string> = {
 // would misrepresent it as quantum-relevant.
 const CLASSES: Record<QuantumStatus, string> = {
   "broken-by-shor": "bg-status-critical text-white",
-  "weakened-by-grover": "bg-status-warning text-ink",
+  "weakened-by-grover": "bg-status-warning text-status-warning-fg",
   "quantum-safe": "bg-status-good text-white",
   "broken-classically": "bg-status-neutral-bg text-status-neutral-fg",
   unknown: "bg-status-neutral-bg text-status-neutral-fg",
 };
 
+const DOT_CLASSES: Record<QuantumStatus, string> = {
+  "broken-by-shor": "bg-white",
+  "weakened-by-grover": "bg-status-warning-fg",
+  "quantum-safe": "bg-white",
+  "broken-classically": "bg-status-neutral-fg",
+  unknown: "bg-status-neutral-fg",
+};
+
 export function QuantumStatusBadge({ status }: { status: QuantumStatus | undefined }) {
   if (status === undefined) {
-    return <span className="text-sm text-ink-muted">—</span>;
+    return <span className="font-mono text-sm text-ink-muted">—</span>;
   }
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${CLASSES[status]}`}
+      className={`inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide ${CLASSES[status]}`}
     >
+      <span className={`h-1.5 w-1.5 rounded-full ${DOT_CLASSES[status]}`} aria-hidden="true" />
       {LABEL[status]}
     </span>
   );

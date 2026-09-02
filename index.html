@@ -5,13 +5,21 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>PRATYAKSHA-UI</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
     <script>
       // Applied synchronously, before first paint, so there is no
       // flash of the wrong theme. Same storage key / logic the in-app
-      // theme toggle (src/theme.ts) uses after mount.
+      // theme toggle (src/theme.ts) uses after mount. Dark is the
+      // default experience — with no stored preference we go dark
+      // regardless of OS setting.
       (function () {
         var stored = localStorage.getItem('pratyaksha-ui-theme');
-        var dark = stored ? stored === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+        var dark = stored ? stored === 'dark' : true;
         document.documentElement.classList.toggle('dark', dark);
       })();
     </script>

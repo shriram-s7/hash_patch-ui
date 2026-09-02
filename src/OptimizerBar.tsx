@@ -11,15 +11,15 @@ export function OptimizerBar({
     budgetDays ?? Math.max(1, ...scenario.schedule.map((item) => item.endDay));
 
   return (
-    <div className="rounded-lg border border-line bg-surface p-4">
-      <div className="mb-1 text-xs font-medium uppercase tracking-wide text-ink-muted">
+    <div className="rounded-sm border border-line bg-surface p-4">
+      <div className="mb-1 text-[11px] font-medium uppercase tracking-wider text-ink-muted">
         Migration schedule — {scenario.name}
         {scenario.estimatedYear !== undefined ? ` (~${scenario.estimatedYear})` : ""}
       </div>
       {scenario.headline !== undefined && (
         <p className="mb-3 text-sm font-semibold text-ink">{scenario.headline}</p>
       )}
-      <div className="flex h-8 w-full overflow-hidden rounded-md border border-line bg-page">
+      <div className="flex h-8 w-full overflow-hidden rounded-sm border border-line bg-page">
         {scenario.schedule.map((item, i) => {
           const widthPct = totalDays > 0 ? ((item.endDay - item.startDay) / totalDays) * 100 : 0;
           return (
@@ -34,7 +34,7 @@ export function OptimizerBar({
           );
         })}
       </div>
-      <div className="mt-1 text-xs text-ink-muted">
+      <div className="mt-1 font-mono text-xs text-ink-muted">
         {scenario.schedule.length} asset{scenario.schedule.length === 1 ? "" : "s"} scheduled over{" "}
         {totalDays} day{totalDays === 1 ? "" : "s"}
       </div>
