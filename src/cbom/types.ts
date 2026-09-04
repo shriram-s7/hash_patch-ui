@@ -1,15 +1,15 @@
 /**
- * Types for the raw CycloneDX 1.6 CBOM JSON shape PRATYAKSHA emits, and the
+ * Types for the raw CycloneDX 1.6 CBOM JSON shape Hash Patch emits, and the
  * typed `Finding` shape the rest of the app consumes. See cbomToFindings.ts
- * for the (only) place that reads `pratyaksha:`-namespaced property strings.
+ * for the (only) place that reads `hash_patch:` / `hash-patch:` property strings.
  *
  * Confirmed against the real fixtures (public/fixtures/demo.cbom.json,
  * real_world.cbom.json) rather than assumed — see backend enums in
- * pratyaksha/model/assets.py for the full value sets (a few, e.g.
+ * hash_patch/model/assets.py for the full value sets (a few, e.g.
  * "quantum-safe", don't appear in current fixture data but are valid).
  */
 
-// --- Raw CycloneDX document shape (only the fields PRATYAKSHA populates) ---
+// --- Raw CycloneDX document shape (only the fields Hash Patch populates) ---
 
 export interface RawCbomDocument {
   bomFormat?: string;
@@ -62,7 +62,7 @@ export interface RawOccurrence {
   additionalContext?: string;
 }
 
-// --- Enums (backend: pratyaksha/model/assets.py) ---
+// --- Enums (backend: hash_patch/model/assets.py) ---
 
 export type QuantumStatus =
   | "broken-by-shor"
@@ -84,6 +84,16 @@ export interface EvidenceOccurrence {
   sourceType: string | undefined;
 }
 
+/** A losing candidate from the longest-shelf-life-wins tie-break
+ * (hash_patch/analyze/shelf_life.py::_pick_winning_match), if the backend
+ * ever exposes it on a ShelfLifeEntry — not present in the CBOM property
+ * shape as of this writing (see docs/SHELF_LIFE.md), so callers must treat
+ * this as optional and never assume it exists. */
+export interface ShelfLifeAlsoMatched {
+  category: string;
+  shelfLifeYears: number | undefined;
+}
+
 export interface ShelfLifeEntry {
   category: string;
   shelfLifeYears: number | undefined;
@@ -91,6 +101,24 @@ export interface ShelfLifeEntry {
   confidence: string | undefined;
   moscaNote: string | undefined;
   locator: string | undefined;
+  /** The identifier that triggered this category match (e.g. the call
+   * argument or enclosing-function name), if present in the data. */
+  matchedIdentifier: string | undefined;
+  /** The ontology name_pattern that matched matchedIdentifier, if present
+   * in the data. */
+  matchedPattern: string | undefined;
+  /** Other categories that also matched the same call site but lost the
+   * longest-shelf-life-wins tie-break, if present in the data. */
+  alsoMatched: ShelfLifeAlsoMatched[] | undefined;
+}
+
+export interface CallRelation {
+  /** Asset ids of other findings whose enclosing function directly calls
+   * this finding's enclosing function (one hop, not transitive). */
+  callers: string[];
+  /** Asset ids of other findings whose enclosing function is directly
+   * called by this finding's enclosing function (one hop, not transitive). */
+  callees: string[];
 }
 
 export interface BlastRadiusEntry {
@@ -107,7 +135,7 @@ export interface BlastRadiusEntry {
 }
 
 /** The single typed shape every component in the app consumes. Never touch
- * a raw `pratyaksha:` property-name string outside cbomToFindings.ts. */
+ * a raw `hash_patch:` property-name string outside cbomToFindings.ts. */
 export interface Finding {
   id: string;
   name: string;
@@ -126,6 +154,10 @@ export interface Finding {
   /** Longest shelf-life among this finding's entries, for sorting/display. */
   longestShelfLifeYears: number | undefined;
   blastRadius: BlastRadiusEntry[];
+  /** Direct call-graph edges to other findings (hash_patch/analyze/call_relations.py).
+   * `undefined` when this finding has no `hash_patch:property.callRelation` at
+   * all (Go/C evidence, or genuinely no direct caller/callee finding). */
+  callRelation: CallRelation | undefined;
 }
 
 export interface ContradictionEntry {
@@ -139,4 +171,5 @@ export interface ParsedCbom {
   timestamp: string | undefined;
   findings: Finding[];
   contradictions: ContradictionEntry[];
+  scannedFiles?: string[];
 }

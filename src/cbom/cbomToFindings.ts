@@ -1,8 +1,7 @@
 /**
- * The ONLY place in the app that touches raw `pratyaksha:`-namespaced
- * property-name strings. Everything downstream (metric cards, the findings
- * table, the detail panel) consumes the typed `Finding[]` / `ParsedCbom`
- * shape from ./types — never a raw property object.
+ * The place in the app that touches raw CBOM property-name strings
+ * (`hash_patch:` and `hash-patch:`). Everything downstream
+ * consumes the typed `Finding[]` / `ParsedCbom` shape from ./types — never a raw property object.
  *
  * Defensive by construction: a missing or malformed field produces
  * `undefined` for that piece of a finding's data, never a thrown error.
@@ -11,6 +10,7 @@
  */
 import type {
   BlastRadiusEntry,
+  CallRelation,
   ContradictionEntry,
   EvidenceOccurrence,
   Finding,
@@ -21,6 +21,7 @@ import type {
   RawCbomProperty,
   RawOccurrence,
   Reachability,
+  ShelfLifeAlsoMatched,
   ShelfLifeEntry,
 } from "./types";
 
@@ -81,6 +82,13 @@ function propertyMap(properties: RawCbomProperty[] | undefined): Map<string, str
   return map;
 }
 
+function getProp(props: Map<string, string>, suffix: string): string | undefined {
+  return (
+    props.get(`hash_patch:${suffix}`) ??
+    props.get(`hash-patch:${suffix}`)
+  );
+}
+
 function parseOccurrence(occ: RawOccurrence): EvidenceOccurrence {
   const ctx = safeJsonParse(occ.additionalContext);
   return {
@@ -93,13 +101,41 @@ function parseOccurrence(occ: RawOccurrence): EvidenceOccurrence {
   };
 }
 
-/** `pratyaksha:property.shelfLife.<category>` -> ShelfLifeEntry. */
+const SHELF_LIFE_PREFIXES = [
+  "hash_patch:property.shelfLife.",
+  "hash-patch:property.shelfLife.",
+];
+
+/** Parses an optional `alsoMatched` array from a shelf-life property value,
+ * if the backend ever includes one (not present as of this writing — see
+ * ShelfLifeAlsoMatched's own doc comment in ./types). Malformed or missing
+ * entries are dropped defensively rather than thrown. */
+function parseAlsoMatched(value: unknown): ShelfLifeAlsoMatched[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const parsed = value
+    .map((item): ShelfLifeAlsoMatched | undefined => {
+      if (item === null || typeof item !== "object") return undefined;
+      const rec = item as Record<string, unknown>;
+      const category = asString(rec.category);
+      if (category === undefined) return undefined;
+      return { category, shelfLifeYears: asNumber(rec.shelfLifeYears) };
+    })
+    .filter((v): v is ShelfLifeAlsoMatched => v !== undefined);
+  return parsed.length > 0 ? parsed : undefined;
+}
+
+/** `hash_patch:property.shelfLife.<category>` -> ShelfLifeEntry. */
 function parseShelfLifeEntries(props: Map<string, string>): ShelfLifeEntry[] {
-  const prefix = "pratyaksha:property.shelfLife.";
   const entries: ShelfLifeEntry[] = [];
   for (const [name, rawValue] of props) {
-    if (!name.startsWith(prefix)) continue;
-    const category = name.slice(prefix.length);
+    let category: string | null = null;
+    for (const prefix of SHELF_LIFE_PREFIXES) {
+      if (name.startsWith(prefix)) {
+        category = name.slice(prefix.length);
+        break;
+      }
+    }
+    if (!category) continue;
     const v = safeJsonParse(rawValue);
     entries.push({
       category,
@@ -108,18 +144,31 @@ function parseShelfLifeEntries(props: Map<string, string>): ShelfLifeEntry[] {
       confidence: v ? asString(v.confidence) : undefined,
       moscaNote: v ? asString(v.moscaNote) : undefined,
       locator: v ? asString(v.locator) : undefined,
+      matchedIdentifier: v ? asString(v.matchedIdentifier) : undefined,
+      matchedPattern: v ? asString(v.matchedPattern) : undefined,
+      alsoMatched: v ? parseAlsoMatched(v.alsoMatched) : undefined,
     });
   }
   return entries;
 }
 
-/** `pratyaksha:property.blastRadius.<kind>.<name>.<line>` -> BlastRadiusEntry. */
+const BLAST_RADIUS_PREFIXES = [
+  "hash_patch:property.blastRadius.",
+  "hash-patch:property.blastRadius.",
+];
+
+/** `hash_patch:property.blastRadius.<kind>.<name>.<line>` -> BlastRadiusEntry. */
 function parseBlastRadiusEntries(props: Map<string, string>): BlastRadiusEntry[] {
-  const prefix = "pratyaksha:property.blastRadius.";
   const entries: BlastRadiusEntry[] = [];
   for (const [name, rawValue] of props) {
-    if (!name.startsWith(prefix)) continue;
-    const key = name.slice(prefix.length);
+    let key: string | null = null;
+    for (const prefix of BLAST_RADIUS_PREFIXES) {
+      if (name.startsWith(prefix)) {
+        key = name.slice(prefix.length);
+        break;
+      }
+    }
+    if (!key) continue;
     const v = safeJsonParse(rawValue);
     entries.push({
       key,
@@ -134,6 +183,18 @@ function parseBlastRadiusEntries(props: Map<string, string>): BlastRadiusEntry[]
     });
   }
   return entries;
+}
+
+function asStringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((v): v is string => typeof v === "string") : [];
+}
+
+/** `hash_patch:property.callRelation` -> CallRelation (hash_patch/analyze/call_relations.py). */
+function parseCallRelation(props: Map<string, string>): CallRelation | undefined {
+  const raw = getProp(props, "property.callRelation");
+  const v = safeJsonParse(raw);
+  if (!v) return undefined;
+  return { callers: asStringArray(v.callers), callees: asStringArray(v.callees) };
 }
 
 function componentToFinding(component: RawCbomComponent, index: number): Finding {
@@ -152,32 +213,57 @@ function componentToFinding(component: RawCbomComponent, index: number): Finding
     parameterSetIdentifier: component.cryptoProperties?.algorithmProperties?.parameterSetIdentifier,
     mode: component.cryptoProperties?.algorithmProperties?.mode,
     oid: component.cryptoProperties?.oid,
-    quantumStatus: asQuantumStatus(props.get("pratyaksha:quantumStatus")),
-    reachability: asReachability(props.get("pratyaksha:reachability")),
-    confidence: props.get("pratyaksha:confidence"),
-    detectorId: props.get("pratyaksha:detectorId"),
-    detectorVersion: props.get("pratyaksha:detectorVersion"),
+    quantumStatus: asQuantumStatus(getProp(props, "quantumStatus")),
+    reachability: asReachability(getProp(props, "reachability")),
+    confidence: getProp(props, "confidence"),
+    detectorId: getProp(props, "detectorId"),
+    detectorVersion: getProp(props, "detectorVersion"),
     evidence: (component.evidence?.occurrences ?? []).map(parseOccurrence),
     shelfLife,
     longestShelfLifeYears,
     blastRadius: parseBlastRadiusEntries(props),
+    callRelation: parseCallRelation(props),
   };
 }
 
-/** `pratyaksha:contradiction.<id>` on metadata.properties -> ContradictionEntry. */
+const CONTRADICTION_PREFIXES = [
+  "hash_patch:contradiction.",
+  "hash-patch:contradiction.",
+];
+
+/** `hash_patch:contradiction.<id>` on metadata.properties -> ContradictionEntry. */
 function parseContradictions(metadataProperties: RawCbomProperty[] | undefined): ContradictionEntry[] {
-  const prefix = "pratyaksha:contradiction.";
   const out: ContradictionEntry[] = [];
   for (const p of metadataProperties ?? []) {
-    if (typeof p?.name !== "string" || !p.name.startsWith(prefix)) continue;
+    if (typeof p?.name !== "string") continue;
+    let contraId: string | null = null;
+    for (const prefix of CONTRADICTION_PREFIXES) {
+      if (p.name.startsWith(prefix)) {
+        contraId = p.name.slice(prefix.length);
+        break;
+      }
+    }
+    if (!contraId) continue;
     const v = safeJsonParse(p.value);
     out.push({
-      id: v ? (asString(v.id) ?? p.name.slice(prefix.length)) : p.name.slice(prefix.length),
+      id: v ? (asString(v.id) ?? contraId) : contraId,
       severity: v ? asString(v.severity) : undefined,
       description: v ? asString(v.description) : undefined,
     });
   }
   return out;
+}
+
+function parseScannedFiles(properties: RawCbomProperty[] | undefined): string[] | undefined {
+  for (const p of properties ?? []) {
+    if (p.name === "hash_patch:scanned_files" || p.name === "hash-patch:scanned_files") {
+      try {
+        const parsed = JSON.parse(p.value);
+        if (Array.isArray(parsed)) return parsed as string[];
+      } catch {}
+    }
+  }
+  return undefined;
 }
 
 /**
@@ -200,5 +286,6 @@ export function parseCbomDocument(raw: unknown): ParsedCbom {
     timestamp: doc.metadata?.timestamp,
     findings: (doc.components ?? []).map(componentToFinding),
     contradictions: parseContradictions(doc.metadata?.properties),
+    scannedFiles: parseScannedFiles(doc.metadata?.properties),
   };
 }
