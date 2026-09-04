@@ -228,11 +228,21 @@ export function RepositoryView({ sourceName, findings, scannedFiles }: Repositor
           <div className="flex shrink-0 items-center gap-2">
             <SeverityBar counts={node.counts} total={node.totalFindings} />
             <span
-              className={`w-6 text-right font-mono text-xs tabular-nums ${
+              className={`w-16 text-right font-mono text-xs tabular-nums ${
                 isDimmed ? "text-ink-muted/50" : "text-ink font-semibold"
               }`}
             >
-              {node.totalFindings}
+              {node.counts.references > 0 && node.counts.operations > 0 ? (
+                <span>
+                  {node.counts.operations} <span className="text-[10px] text-ink-muted font-normal">op</span> / {node.counts.references} <span className="text-[10px] text-ink-muted font-normal">ref</span>
+                </span>
+              ) : node.counts.references > 0 ? (
+                <span>
+                  {node.counts.references} <span className="text-[10px] text-ink-muted font-normal">ref</span>
+                </span>
+              ) : (
+                node.totalFindings
+              )}
             </span>
           </div>
         </div>
@@ -297,7 +307,11 @@ export function RepositoryView({ sourceName, findings, scannedFiles }: Repositor
                   <div className="flex items-center gap-2 font-heading">
                     <SeverityBar counts={selectedNode.counts} total={selectedNode.totalFindings} />
                     <span className="text-xs font-semibold text-ink tabular-nums">
-                      {selectedNode.totalFindings} finding{selectedNode.totalFindings === 1 ? "" : "s"}
+                      {selectedNode.counts.references > 0 && selectedNode.counts.operations > 0
+                        ? `${selectedNode.counts.operations} operation${selectedNode.counts.operations === 1 ? "" : "s"} · ${selectedNode.counts.references} reference${selectedNode.counts.references === 1 ? "" : "s"}`
+                        : selectedNode.counts.references > 0
+                        ? `${selectedNode.counts.references} crypto reference${selectedNode.counts.references === 1 ? "" : "s"}`
+                        : `${selectedNode.totalFindings} finding${selectedNode.totalFindings === 1 ? "" : "s"}`}
                     </span>
                   </div>
                 </div>
@@ -370,6 +384,11 @@ export function RepositoryView({ sourceName, findings, scannedFiles }: Repositor
                           <div className="flex flex-wrap items-center justify-between gap-2">
                             <div className="flex items-center gap-2">
                               <span className="text-sm font-semibold text-ink">{finding.name}</span>
+                              {finding.findingType === "CRYPTO_REFERENCE" && (
+                                <span className="font-mono text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded-sm bg-surface-2 text-ink-muted border border-line">
+                                  Reference
+                                </span>
+                              )}
                             </div>
 
                             <div className="flex items-center gap-2">

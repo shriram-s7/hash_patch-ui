@@ -18,6 +18,8 @@ export interface TreeNode {
     classic: number;
     grover: number;
     safe: number;
+    operations: number;
+    references: number;
   };
 }
 
@@ -266,6 +268,8 @@ export function buildRepositoryTree(
       classic: allFindings.filter((f) => f.quantumStatus === "broken-classically").length,
       grover: allFindings.filter((f) => f.quantumStatus === "weakened-by-grover").length,
       safe: allFindings.filter((f) => f.quantumStatus === "quantum-safe").length,
+      operations: allFindings.filter((f) => f.findingType !== "CRYPTO_REFERENCE").length,
+      references: allFindings.filter((f) => f.findingType === "CRYPTO_REFERENCE").length,
     };
 
     return {

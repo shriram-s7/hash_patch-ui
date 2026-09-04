@@ -222,6 +222,10 @@ function componentToFinding(component: RawCbomComponent, index: number): Finding
     shelfLife,
     longestShelfLifeYears,
     blastRadius: parseBlastRadiusEntries(props),
+    findingType:
+      (getProp(props, "findingType") as "OPERATION" | "CRYPTO_REFERENCE" | undefined) ??
+      (getProp(props, "property.finding_type") as "OPERATION" | "CRYPTO_REFERENCE" | undefined) ??
+      "OPERATION",
     callRelation: parseCallRelation(props),
   };
 }

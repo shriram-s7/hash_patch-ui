@@ -154,6 +154,7 @@ export interface Finding {
   /** Longest shelf-life among this finding's entries, for sorting/display. */
   longestShelfLifeYears: number | undefined;
   blastRadius: BlastRadiusEntry[];
+  findingType?: "OPERATION" | "CRYPTO_REFERENCE";
   /** Direct call-graph edges to other findings (hash_patch/analyze/call_relations.py).
    * `undefined` when this finding has no `hash_patch:property.callRelation` at
    * all (Go/C evidence, or genuinely no direct caller/callee finding). */
