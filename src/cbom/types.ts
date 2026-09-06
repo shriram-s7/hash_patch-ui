@@ -69,9 +69,23 @@ export type QuantumStatus =
   | "weakened-by-grover"
   | "quantum-safe"
   | "broken-classically"
-  | "unknown";
+  | "unknown"
+  /** Cloud KMS/HSM client-side operation (hash_patch/detect/cloud_kms/) —
+   * provider-managed, deliberately NOT a quantum-risk verdict (a static
+   * scanner can never observe which algorithm the provider runs server-side). */
+  | "algorithm-opaque-provider-managed";
 
 export type Reachability = "live-external" | "live-internal" | "inert" | "unknown";
+
+export type ExposureState = "external" | "internal" | "mixed" | "unknown";
+/** Phase 4 IaC correlation strength (correlation.py CorrelationStrength). */
+export type CorrelationStrength =
+  | "direct"
+  | "strong"
+  | "moderate"
+  | "weak"
+  | "none"
+  | "unresolved";
 
 // --- Typed, decoded sub-shapes ---
 
@@ -121,6 +135,73 @@ export interface CallRelation {
   callees: string[];
 }
 
+/** Certificate-specific fields (hash_patch/detect/certificates.py) — only
+ * present on a finding whose findingType is "CERTIFICATE" or
+ * "CERTIFICATE_UNPARSEABLE". A certificate file isn't executable code, so
+ * it never has reachability, blast-radius, or DPDP-inferred shelf-life —
+ * its own notAfter date feeds shelfLife instead, tagged evidenceSource
+ * "certificate_expiry" (see the shelfLife array's own confidence/locator
+ * fields for that entry). */
+export interface CertificateInfo {
+  subject: string | undefined;
+  issuer: string | undefined;
+  signatureAlgorithm: string | undefined;
+  notBefore: string | undefined;
+  notAfter: string | undefined;
+  selfSigned: boolean | undefined;
+  expired: boolean | undefined;
+  expiringSoon: boolean | undefined;
+  expiryWindowDays: number | undefined;
+  chainPosition: number | undefined;
+  chainDepth: number | undefined;
+  fingerprintSha256: string | undefined;
+  /** Only present when findingType is "CERTIFICATE_UNPARSEABLE" — e.g. a
+   * password-protected .p12 with no password supplied, or corrupt data. */
+  error: string | undefined;
+}
+
+/** Cloud-key specifics (hash_patch/detect/cloud_kms/) — present on every
+ * finding whose findingType is "CLOUD_KEY_OPERATION". The operation is the
+ * verbatim method name from the call site (encrypt/decrypt/createKey/...),
+ * and verificationScope is ALWAYS "client_call_only": this finding proves
+ * the scanned code CALLS a cloud key-management client, never what the
+ * provider does with that call server-side — the honest framing must stay
+ * visible next to the finding, not buried in the CBOM property bag. */
+export interface CloudKeyInfo {
+  provider: string | undefined;
+  sdk: string | undefined;
+  operation: string | undefined;
+  verificationScope: string | undefined;
+}
+
+/** Compiled binary crypto specifics (hash_patch/detect/binary/) — present on
+ * every finding whose findingType is "COMPILED_CRYPTO_ARTEFACT".
+ * Static binary observation: never proves runtime execution. */
+export interface BinaryCryptoInfo {
+  binaryFormat: string | undefined;
+  architecture: string | undefined;
+  evidenceType: "symbol" | "linked_library" | "algorithm_string" | "certificate" | string | undefined;
+  observedValue: string | undefined;
+  library: string | undefined;
+  operation: string | undefined;
+  algorithm: string | undefined;
+  verificationScope: string | undefined;
+  honestFraming: string | undefined;
+}
+
+/** Container image cryptographic provenance (Phase 3) — present on any finding
+ * observed within a container image layer. Static inspection only: never proves
+ * runtime execution or deployment reachability. */
+export interface ContainerProvenance {
+  containerImage: string | undefined;
+  imageDigest: string | undefined;
+  layerDigest: string | undefined;
+  pathInsideContainer: string | undefined;
+  effectiveFs: boolean | undefined;
+  verificationScope: string | undefined;
+  honestFraming: string | undefined;
+}
+
 export interface BlastRadiusEntry {
   /** kind.name.line, parsed from the property name suffix */
   key: string;
@@ -154,11 +235,48 @@ export interface Finding {
   /** Longest shelf-life among this finding's entries, for sorting/display. */
   longestShelfLifeYears: number | undefined;
   blastRadius: BlastRadiusEntry[];
-  findingType?: "OPERATION" | "CRYPTO_REFERENCE";
+  findingType?: "OPERATION" | "CRYPTO_REFERENCE" | "CERTIFICATE" | "CERTIFICATE_UNPARSEABLE" | "CLOUD_KEY_OPERATION" | "COMPILED_CRYPTO_ARTEFACT";
+  /** Only present when findingType is "CERTIFICATE" or
+   * "CERTIFICATE_UNPARSEABLE" — see CertificateInfo. */
+  certificate: CertificateInfo | undefined;
+  /** Only present when findingType is "CLOUD_KEY_OPERATION" — see CloudKeyInfo. */
+  cloudKey: CloudKeyInfo | undefined;
+  /** Only present when findingType is "COMPILED_CRYPTO_ARTEFACT" — see BinaryCryptoInfo. */
+  binaryCrypto: BinaryCryptoInfo | undefined;
+  /** Present when finding originates from a container image layer (Phase 3). */
+  container?: ContainerProvenance;
   /** Direct call-graph edges to other findings (hash_patch/analyze/call_relations.py).
    * `undefined` when this finding has no `hash_patch:property.callRelation` at
    * all (Go/C evidence, or genuinely no direct caller/callee finding). */
   callRelation: CallRelation | undefined;
+  /** Phase 4: IaC Deployment Topology Exposure */
+  exposureState: ExposureState | undefined;
+  correlationStrength: CorrelationStrength | undefined;
+  workload: string | undefined;
+  service: string | undefined;
+  ingress: string | undefined;
+  namespace: string | undefined;
+  tfResources: string | undefined;
+  evidenceChain: string | undefined;
+}
+
+/**
+ * Display label for a finding: the canonical algorithm name, with its cipher
+ * mode appended when present (e.g. "AES" + mode "gcm" -> "AES-GCM"). The
+ * backend's `name` field alone can't distinguish two genuinely different
+ * assets that share a canonical algorithm but differ in mode — e.g. Java's
+ * Cipher.getInstance("AES/GCM/NoPadding") vs Cipher.getInstance("AES/CBC/PKCS5Padding")
+ * are two distinct crypto-asset components (different bom-refs), both named
+ * "AES" — so every UI surface that shows a finding's name for a human to
+ * read should use this instead of `finding.name` directly.
+ *
+ * Never use this for equality/lookup against other data (e.g. matching a
+ * finding to an optimizer migration-plan entry by name) — those compare
+ * against the backend's raw canonical `name`, not this display label.
+ */
+export function displayName(finding: Pick<Finding, "name" | "mode">): string {
+  if (!finding.mode) return finding.name;
+  return `${finding.name}-${finding.mode.toUpperCase()}`;
 }
 
 export interface ContradictionEntry {

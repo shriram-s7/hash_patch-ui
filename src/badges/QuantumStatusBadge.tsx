@@ -6,6 +6,7 @@ const LABEL: Record<QuantumStatus, string> = {
   "quantum-safe": "Quantum-safe",
   "broken-classically": "Broken classically",
   unknown: "Unknown",
+  "algorithm-opaque-provider-managed": "Algorithm opaque",
 };
 
 // Factual, not decorative: broken-by-shor is a real quantum break (critical/
@@ -13,13 +14,19 @@ const LABEL: Record<QuantumStatus, string> = {
 // red — NIST does not expect symmetric crypto to need replacement for
 // Grover alone); broken-classically is explicitly NOT a quantum issue, so
 // it gets the same neutral gray as "unknown" rather than any red/amber that
-// would misrepresent it as quantum-relevant.
+// would misrepresent it as quantum-relevant. algorithm-opaque-provider-
+// managed (a cloud KMS/HSM client call) is DELIBERATELY not on this
+// red/amber/green verdict scale at all — violet, a hue the quantum scale
+// never uses, because it is not a quantum verdict, just a visibility
+// statement: "the provider manages the algorithm; we cannot see it from
+// here".
 const CLASSES: Record<QuantumStatus, string> = {
   "broken-by-shor": "bg-status-critical text-white",
   "weakened-by-grover": "bg-status-warning text-status-warning-fg",
   "quantum-safe": "bg-status-good text-white",
   "broken-classically": "bg-status-neutral-bg text-status-neutral-fg",
   unknown: "bg-status-neutral-bg text-status-neutral-fg",
+  "algorithm-opaque-provider-managed": "bg-status-opaque text-white",
 };
 
 const DOT_CLASSES: Record<QuantumStatus, string> = {
@@ -28,6 +35,7 @@ const DOT_CLASSES: Record<QuantumStatus, string> = {
   "quantum-safe": "bg-white",
   "broken-classically": "bg-status-neutral-fg",
   unknown: "bg-status-neutral-fg",
+  "algorithm-opaque-provider-managed": "bg-white",
 };
 
 export function QuantumStatusBadge({ status }: { status: QuantumStatus | undefined }) {
@@ -36,7 +44,7 @@ export function QuantumStatusBadge({ status }: { status: QuantumStatus | undefin
   }
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide ${CLASSES[status]}`}
+      className={`inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${CLASSES[status]}`}
     >
       <span className={`h-1.5 w-1.5 rounded-full ${DOT_CLASSES[status]}`} aria-hidden="true" />
       {LABEL[status]}

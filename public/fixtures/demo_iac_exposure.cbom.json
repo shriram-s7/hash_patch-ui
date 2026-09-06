@@ -1,0 +1,293 @@
+{
+  "$schema": "http://cyclonedx.org/schema/bom-1.6.schema.json",
+  "bomFormat": "CycloneDX",
+  "components": [
+    {
+      "bom-ref": "crypto-asset:2b23217f4c605672f3ad9c7d021aabde",
+      "cryptoProperties": {
+        "algorithmProperties": {
+          "primitive": "signature"
+        },
+        "assetType": "algorithm"
+      },
+      "evidence": {
+        "occurrences": [
+          {
+            "additionalContext": "{\"column\": 5, \"snippet\": \"signature = rsa.Sign(pkcs1_15, private_key, SHA256(data))\", \"source_type\": \"source\"}",
+            "line": 121,
+            "location": "/app/server/security/signing.py:121",
+            "offset": 4123
+          }
+        ]
+      },
+      "name": "RSA",
+      "properties": [
+        {
+          "name": "hash_patch:confidence",
+          "value": "confirmed"
+        },
+        {
+          "name": "hash_patch:correlationStrength",
+          "value": "strong"
+        },
+        {
+          "name": "hash_patch:detectorId",
+          "value": "python"
+        },
+        {
+          "name": "hash_patch:detectorVersion",
+          "value": "1.0"
+        },
+        {
+          "name": "hash_patch:evidenceChain",
+          "value": "Workload: kubernetes:production:Deployment:payment-api -> Service: kubernetes:production:Service:payment-api-internal (ClusterIP) -> Service: kubernetes:production:Service:payment-api-external (LoadBalancer) -> Ingress: kubernetes:production:Ingress:payments (payments.example.com)"
+        },
+        {
+          "name": "hash_patch:exposureState",
+          "value": "mixed"
+        },
+        {
+          "name": "hash_patch:ingress",
+          "value": "kubernetes:production:Ingress:payments"
+        },
+        {
+          "name": "hash_patch:ingressHosts",
+          "value": "payments.example.com"
+        },
+        {
+          "name": "hash_patch:namespace",
+          "value": "production"
+        },
+        {
+          "name": "hash_patch:property.containerImage",
+          "value": "payment-api:1.4"
+        },
+        {
+          "name": "hash_patch:property.imageDigest",
+          "value": "sha256:abc123def456"
+        },
+        {
+          "name": "hash_patch:quantumStatus",
+          "value": "unknown"
+        },
+        {
+          "name": "hash_patch:reachability",
+          "value": "unknown"
+        },
+        {
+          "name": "hash_patch:service",
+          "value": "kubernetes:production:Service:payment-api-internal"
+        },
+        {
+          "name": "hash_patch:serviceType",
+          "value": "ClusterIP"
+        },
+        {
+          "name": "hash_patch:workload",
+          "value": "kubernetes:production:Deployment:payment-api"
+        }
+      ],
+      "type": "cryptographic-asset"
+    },
+    {
+      "bom-ref": "crypto-asset:43881076677c8df2564de0238139b04f",
+      "cryptoProperties": {
+        "algorithmProperties": {
+          "primitive": "signature"
+        },
+        "assetType": "algorithm"
+      },
+      "evidence": {
+        "occurrences": [
+          {
+            "additionalContext": "{\"column\": 5, \"snippet\": \"signature = rsa.Sign(pkcs1_15, private_key, SHA256(data))\", \"source_type\": \"source\"}",
+            "line": 121,
+            "location": "/app/server/security/signing.py:121",
+            "offset": 4123
+          }
+        ]
+      },
+      "name": "AES",
+      "properties": [
+        {
+          "name": "hash_patch:confidence",
+          "value": "confirmed"
+        },
+        {
+          "name": "hash_patch:correlationStrength",
+          "value": "strong"
+        },
+        {
+          "name": "hash_patch:detectorId",
+          "value": "python"
+        },
+        {
+          "name": "hash_patch:detectorVersion",
+          "value": "1.0"
+        },
+        {
+          "name": "hash_patch:evidenceChain",
+          "value": "Workload: kubernetes:production:Deployment:payment-api -> Service: kubernetes:production:Service:payment-api-internal (ClusterIP) -> Service: kubernetes:production:Service:payment-api-external (LoadBalancer) -> Ingress: kubernetes:production:Ingress:payments (payments.example.com)"
+        },
+        {
+          "name": "hash_patch:exposureState",
+          "value": "mixed"
+        },
+        {
+          "name": "hash_patch:ingress",
+          "value": "kubernetes:production:Ingress:payments"
+        },
+        {
+          "name": "hash_patch:ingressHosts",
+          "value": "payments.example.com"
+        },
+        {
+          "name": "hash_patch:namespace",
+          "value": "production"
+        },
+        {
+          "name": "hash_patch:property.containerImage",
+          "value": "payment-api:1.4"
+        },
+        {
+          "name": "hash_patch:property.imageDigest",
+          "value": "sha256:abc123def456"
+        },
+        {
+          "name": "hash_patch:quantumStatus",
+          "value": "unknown"
+        },
+        {
+          "name": "hash_patch:reachability",
+          "value": "unknown"
+        },
+        {
+          "name": "hash_patch:service",
+          "value": "kubernetes:production:Service:payment-api-internal"
+        },
+        {
+          "name": "hash_patch:serviceType",
+          "value": "ClusterIP"
+        },
+        {
+          "name": "hash_patch:workload",
+          "value": "kubernetes:production:Deployment:payment-api"
+        }
+      ],
+      "type": "cryptographic-asset"
+    },
+    {
+      "bom-ref": "crypto-asset:8731a28cad346e5e0c823aa976291242",
+      "cryptoProperties": {
+        "algorithmProperties": {
+          "primitive": "signature"
+        },
+        "assetType": "algorithm"
+      },
+      "evidence": {
+        "occurrences": [
+          {
+            "additionalContext": "{\"column\": 5, \"snippet\": \"signature = rsa.Sign(pkcs1_15, private_key, SHA256(data))\", \"source_type\": \"source\"}",
+            "line": 121,
+            "location": "/app/server/security/signing.py:121",
+            "offset": 4123
+          }
+        ]
+      },
+      "name": "ECDSA-P256",
+      "properties": [
+        {
+          "name": "hash_patch:confidence",
+          "value": "confirmed"
+        },
+        {
+          "name": "hash_patch:correlationStrength",
+          "value": "strong"
+        },
+        {
+          "name": "hash_patch:detectorId",
+          "value": "python"
+        },
+        {
+          "name": "hash_patch:detectorVersion",
+          "value": "1.0"
+        },
+        {
+          "name": "hash_patch:evidenceChain",
+          "value": "Workload: kubernetes:production:Deployment:payment-api -> Service: kubernetes:production:Service:payment-api-internal (ClusterIP) -> Service: kubernetes:production:Service:payment-api-external (LoadBalancer) -> Ingress: kubernetes:production:Ingress:payments (payments.example.com)"
+        },
+        {
+          "name": "hash_patch:exposureState",
+          "value": "mixed"
+        },
+        {
+          "name": "hash_patch:ingress",
+          "value": "kubernetes:production:Ingress:payments"
+        },
+        {
+          "name": "hash_patch:ingressHosts",
+          "value": "payments.example.com"
+        },
+        {
+          "name": "hash_patch:namespace",
+          "value": "production"
+        },
+        {
+          "name": "hash_patch:property.containerImage",
+          "value": "payment-api:1.4"
+        },
+        {
+          "name": "hash_patch:property.imageDigest",
+          "value": "sha256:abc123def456"
+        },
+        {
+          "name": "hash_patch:quantumStatus",
+          "value": "unknown"
+        },
+        {
+          "name": "hash_patch:reachability",
+          "value": "unknown"
+        },
+        {
+          "name": "hash_patch:service",
+          "value": "kubernetes:production:Service:payment-api-internal"
+        },
+        {
+          "name": "hash_patch:serviceType",
+          "value": "ClusterIP"
+        },
+        {
+          "name": "hash_patch:workload",
+          "value": "kubernetes:production:Deployment:payment-api"
+        }
+      ],
+      "type": "cryptographic-asset"
+    }
+  ],
+  "dependencies": [
+    {
+      "ref": "crypto-asset:2b23217f4c605672f3ad9c7d021aabde"
+    },
+    {
+      "ref": "crypto-asset:43881076677c8df2564de0238139b04f"
+    },
+    {
+      "ref": "crypto-asset:8731a28cad346e5e0c823aa976291242"
+    }
+  ],
+  "metadata": {
+    "timestamp": "2026-01-15T09:30:00+00:00",
+    "tools": {
+      "components": [
+        {
+          "name": "Hash Patch",
+          "type": "application",
+          "version": "0.1.0"
+        }
+      ]
+    }
+  },
+  "serialNumber": "urn:uuid:14b5b305-6782-5a34-a292-8323f8c3ae5c",
+  "specVersion": "1.6",
+  "version": 1
+}

@@ -9,10 +9,16 @@
  * uploaded/fetched file itself, which the caller is expected to catch.
  */
 import type {
+  BinaryCryptoInfo,
   BlastRadiusEntry,
   CallRelation,
+  CertificateInfo,
+  CloudKeyInfo,
+  ContainerProvenance,
   ContradictionEntry,
+  CorrelationStrength,
   EvidenceOccurrence,
+  ExposureState,
   Finding,
   ParsedCbom,
   QuantumStatus,
@@ -31,6 +37,7 @@ const QUANTUM_STATUS_VALUES = new Set<QuantumStatus>([
   "quantum-safe",
   "broken-classically",
   "unknown",
+  "algorithm-opaque-provider-managed",
 ]);
 
 const REACHABILITY_VALUES = new Set<Reachability>([
@@ -39,6 +46,34 @@ const REACHABILITY_VALUES = new Set<Reachability>([
   "inert",
   "unknown",
 ]);
+
+const EXPOSURE_STATE_VALUES = new Set<ExposureState>([
+  "external",
+  "internal",
+  "mixed",
+  "unknown",
+]);
+
+const CORRELATION_STRENGTH_VALUES = new Set<CorrelationStrength>([
+  "direct",
+  "strong",
+  "moderate",
+  "weak",
+  "none",
+  "unresolved",
+]);
+
+function asCorrelationStrength(value: string | undefined): CorrelationStrength | undefined {
+  return value !== undefined && CORRELATION_STRENGTH_VALUES.has(value as CorrelationStrength)
+    ? (value as CorrelationStrength)
+    : undefined;
+}
+
+function asExposureState(value: string | undefined): ExposureState | undefined {
+  return value !== undefined && EXPOSURE_STATE_VALUES.has(value as ExposureState)
+    ? (value as ExposureState)
+    : undefined;
+}
 
 function asQuantumStatus(value: string | undefined): QuantumStatus | undefined {
   return value !== undefined && QUANTUM_STATUS_VALUES.has(value as QuantumStatus)
@@ -197,6 +232,105 @@ function parseCallRelation(props: Map<string, string>): CallRelation | undefined
   return { callers: asStringArray(v.callers), callees: asStringArray(v.callees) };
 }
 
+function asBool(value: unknown): boolean | undefined {
+  if (value === "true") return true;
+  if (value === "false") return false;
+  return undefined;
+}
+
+/** Unlike blastRadius/shelfLife (JSON-encoded property values, where a
+ * number stays a number through JSON.parse), certificate.* properties are
+ * flat strings (see hash_patch/detect/certificates.py) -- "2048", "0" --
+ * so they need string->number parsing, not asNumber's typeof check. */
+function asNumberFromPropString(value: string | undefined): number | undefined {
+  if (value === undefined) return undefined;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : undefined;
+}
+
+/** `hash_patch:property.certificate.<field>` -> CertificateInfo
+ * (hash_patch/detect/certificates.py). Only present when findingType is
+ * "CERTIFICATE" or "CERTIFICATE_UNPARSEABLE" — every other finding has no
+ * "certificate.*" properties at all, so this returns undefined for them. */
+function parseCertificateInfo(props: Map<string, string>): CertificateInfo | undefined {
+  const get = (field: string) => getProp(props, `property.certificate.${field}`);
+  if (!Array.from(props.keys()).some((k) => k.includes(":property.certificate."))) {
+    return undefined;
+  }
+  return {
+    subject: get("subject"),
+    issuer: get("issuer"),
+    signatureAlgorithm: get("signatureAlgorithm"),
+    notBefore: get("notBefore"),
+    notAfter: get("notAfter"),
+    selfSigned: asBool(get("selfSigned")),
+    expired: asBool(get("expired")),
+    expiringSoon: asBool(get("expiringSoon")),
+    expiryWindowDays: asNumberFromPropString(get("expiryWindowDays")),
+    chainPosition: asNumberFromPropString(get("chainPosition")),
+    chainDepth: asNumberFromPropString(get("chainDepth")),
+    fingerprintSha256: get("fingerprintSha256"),
+    error: get("error"),
+  };
+}
+
+/** `hash_patch:property.cloudKey.<field>` -> CloudKeyInfo
+ * (hash_patch/detect/cloud_kms/). Only present when findingType is
+ * "CLOUD_KEY_OPERATION" — every other finding has no "cloudKey.*"
+ * properties at all, so this returns undefined for them. */
+function parseCloudKeyInfo(props: Map<string, string>): CloudKeyInfo | undefined {
+  const get = (field: string) => getProp(props, `property.cloudKey.${field}`);
+  if (!Array.from(props.keys()).some((k) => k.includes(":property.cloudKey."))) {
+    return undefined;
+  }
+  return {
+    provider: get("provider"),
+    sdk: get("sdk"),
+    operation: get("operation"),
+    verificationScope: get("verificationScope"),
+  };
+}
+
+/** `hash_patch:property.<field>` -> BinaryCryptoInfo (hash_patch/detect/binary/).
+ * Only present when findingType is "COMPILED_CRYPTO_ARTEFACT". */
+function parseBinaryCryptoInfo(props: Map<string, string>): BinaryCryptoInfo | undefined {
+  const get = (field: string) => getProp(props, `property.${field}`);
+  if (!get("binaryFormat") && !get("evidenceType")) {
+    return undefined;
+  }
+  return {
+    binaryFormat: get("binaryFormat"),
+    architecture: get("architecture"),
+    evidenceType: get("evidenceType"),
+    observedValue: get("observedValue"),
+    library: get("library"),
+    operation: get("operation"),
+    algorithm: get("algorithm"),
+    verificationScope: get("verificationScope"),
+    honestFraming: get("honestFraming"),
+  };
+}
+
+/** `hash_patch:property.<field>` -> ContainerProvenance (Phase 3).
+ * Present when finding originates from a container image layer. */
+function parseContainerProvenance(props: Map<string, string>): ContainerProvenance | undefined {
+  const get = (field: string) => getProp(props, `property.${field}`);
+  const containerImage = get("containerImage");
+  const pathInsideContainer = get("pathInsideContainer");
+  if (!containerImage && !pathInsideContainer) {
+    return undefined;
+  }
+  return {
+    containerImage,
+    imageDigest: get("imageDigest"),
+    layerDigest: get("layerDigest"),
+    pathInsideContainer,
+    effectiveFs: asBool(get("effectiveFs")) ?? true,
+    verificationScope: get("verificationScope"),
+    honestFraming: get("honestFraming"),
+  };
+}
+
 function componentToFinding(component: RawCbomComponent, index: number): Finding {
   const props = propertyMap(component.properties);
   const shelfLife = parseShelfLifeEntries(props);
@@ -223,10 +357,36 @@ function componentToFinding(component: RawCbomComponent, index: number): Finding
     longestShelfLifeYears,
     blastRadius: parseBlastRadiusEntries(props),
     findingType:
-      (getProp(props, "findingType") as "OPERATION" | "CRYPTO_REFERENCE" | undefined) ??
-      (getProp(props, "property.finding_type") as "OPERATION" | "CRYPTO_REFERENCE" | undefined) ??
+      (getProp(props, "findingType") as
+        | "OPERATION"
+        | "CRYPTO_REFERENCE"
+        | "CERTIFICATE"
+        | "CERTIFICATE_UNPARSEABLE"
+        | "CLOUD_KEY_OPERATION"
+        | "COMPILED_CRYPTO_ARTEFACT"
+        | undefined) ??
+      (getProp(props, "property.finding_type") as
+        | "OPERATION"
+        | "CRYPTO_REFERENCE"
+        | "CERTIFICATE"
+        | "CERTIFICATE_UNPARSEABLE"
+        | "CLOUD_KEY_OPERATION"
+        | "COMPILED_CRYPTO_ARTEFACT"
+        | undefined) ??
       "OPERATION",
+    certificate: parseCertificateInfo(props),
+    cloudKey: parseCloudKeyInfo(props),
+    binaryCrypto: parseBinaryCryptoInfo(props),
+    container: parseContainerProvenance(props),
     callRelation: parseCallRelation(props),
+    exposureState: asExposureState(getProp(props, "exposureState")),
+    correlationStrength: asCorrelationStrength(getProp(props, "correlationStrength")),
+    workload: getProp(props, "workload"),
+    service: getProp(props, "service"),
+    ingress: getProp(props, "ingress"),
+    namespace: getProp(props, "namespace"),
+    tfResources: getProp(props, "tfResources"),
+    evidenceChain: getProp(props, "evidenceChain"),
   };
 }
 

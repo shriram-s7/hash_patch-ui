@@ -13,13 +13,10 @@
  * CSS variables, defined in exactly two places (light block, dark
  * block) — no component file ever writes a raw hex value.
  *
- * "Deep Scan" palette: a near-black desaturated graphite/navy base with
- * layered surface levels, one cold-cyan signal color reserved for
- * structure/interactivity, and the quantum-status hues carried over
- * unchanged in meaning from the original palette (only exact shades
- * retuned to sit correctly against the new, much darker background —
- * verified with the dataviz skill's contrast/CVD validator; see the
- * shade notes below each block).
+ * Neutral Clinical palette: pure neutral grayscale chrome with layered
+ * surface levels. Saturated color is STRICTLY RESERVED for quantum risk
+ * status and severity (critical red, warning amber, good green, neutral gray).
+ * All navigation, buttons, indicators, badges, and controls are neutral.
  * ------------------------------------------------------------------- */
 :root {
   color-scheme: light;
@@ -42,21 +39,24 @@
   --status-good: #0ca30c;
   --status-neutral-bg: #e1e0d9;
   --status-neutral-fg: #52514e;
+  /* Algorithm-opaque (cloud KMS/HSM client call) — violet, a hue the
+     quantum verdict scale never uses, so it can never be mistaken for a
+     red/amber/green quantum-risk verdict. */
+  --status-opaque: #7a56d6;
   /* Fixed dark ink for text on the light amber warning fill — intentionally
      NOT `--ink` (which flips light in dark mode and would go unreadable on
      the still-light amber background). Same value in both themes, so it is
      defined once here and never overridden in .dark. */
   --status-warning-fg: #1a1400;
 
-  /* Reachability — solid fills for confirmed-live, outlines for
-     inert/unknown. Distinct hues from the status palette above. */
-  --reach-external: #4a3aa7;
-  --reach-internal: #2a78d6;
+  /* Reachability — neutral grayscale with shape/weight differentiation (no hue) */
+  --reach-external: #0b0e13;
+  --reach-internal: #4b5563;
   --reach-inert: #71839a;
-  --reach-unknown: #1baf7a;
+  --reach-unknown: #4b5563;
 
-  /* Signal accent — the one structural/interactive color. */
-  --accent: #0e7490;
+  /* Neutral chrome accent — pure neutral contrast, zero hue */
+  --accent: #171717;
   --accent-fg: #ffffff;
 }
 
@@ -75,40 +75,28 @@
   --ink-secondary: #93a1b5;
   --ink-muted: #6b7d94;
 
-  /* Same hues as light mode, shades retuned for the darker surface:
-     critical/warning unchanged (already >=4.5:1 on white text and CVD
-     PASS at this exact value); good darkened #0ca30c -> #0c8a0c (white
-     text on #0ca30c was 3.35:1, fails small-text WCAG — #0c8a0c clears
-     4.5:1); neutral bg/fg moved onto the new graphite family instead of
-     the old warm gray. Validated via
-     dataviz/scripts/validate_palette.js "#d03b3b,#fab219,#0c8a0c,#93a1b5"
-     --mode dark --surface "#0a0e14": CVD separation, normal-vision
-     floor and contrast all PASS. (The tool's categorical "lightness
-     band" and "chroma floor" checks fail for #fab219 and the
-     intentionally-desaturated neutral gray respectively — expected and
-     accepted: that heuristic is scoped to multi-hue categorical chart
-     palettes, not a 4-state status system where one state must read as
-     "off"/non-alarming gray, and every badge still carries a text label
-     alongside the color per the skill's own secondary-encoding
-     allowance.) */
+  /* Saturated risk color is strictly reserved for quantum status & severity:
+     critical = broken-by-shor (red)
+     warning  = weakened-by-grover (amber)
+     good     = quantum-safe (green)
+     neutral  = broken-classically / unknown (gray) */
   --status-critical: #d03b3b;
   --status-warning: #fab219;
   --status-good: #0c8a0c;
   --status-neutral-bg: #1c2531;
   --status-neutral-fg: #93a1b5;
+  /* Algorithm-opaque (cloud KMS/HSM client call) — violet in dark mode too. */
+  --status-opaque: #8a6ee0;
 
-  /* Reachability fills darkened from the previous dark-mode values so
-     white badge text clears 4.5:1 (was 3.13/3.64:1 vs white). */
-  --reach-external: #6e5fd6;
-  --reach-internal: #2f6fc7;
+  /* Reachability — neutral grayscale in dark mode */
+  --reach-external: #e7ecf3;
+  --reach-internal: #93a1b5;
   --reach-inert: #6b7d94;
-  --reach-unknown: #1fae7a;
+  --reach-unknown: #93a1b5;
 
-  /* Cold cyan signal color — reserved for structure/interactivity
-     (links, active states, the mode switcher, the live indicator).
-     10.7:1 against --page; dark text (not white) on accent fills. */
-  --accent: #22d3ee;
-  --accent-fg: #06222a;
+  /* Neutral chrome accent in dark mode — high contrast neutral */
+  --accent: #ededed;
+  --accent-fg: #0a0e14;
 }
 
 /* Bridge the CSS-variable tokens into Tailwind's utility system (v4
@@ -130,6 +118,7 @@
   --color-status-neutral-bg: var(--status-neutral-bg);
   --color-status-neutral-fg: var(--status-neutral-fg);
   --color-status-warning-fg: var(--status-warning-fg);
+  --color-status-opaque: var(--status-opaque);
 
   --color-reach-external: var(--reach-external);
   --color-reach-internal: var(--reach-internal);
@@ -139,18 +128,36 @@
   --color-accent: var(--accent);
   --color-accent-fg: var(--accent-fg);
 
-  /* Typography: monospace for anything evidentiary (file paths, line
-     numbers, hashes, code, raw values); humanist sans for everything
-     else (labels, headings, body copy). Never mixed ad hoc — components
-     use font-mono / font-sans (the Tailwind default) per this rule. */
-  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  /* Typography:
+     - Heading / UI font: Space Grotesk (distinctive character for headings, nav, buttons, claims)
+     - Body / reading font: Inter (neutral workhorse for prose, paragraphs, descriptions)
+     - Monospace font: JetBrains Mono (strictly for evidentiary code, paths, line numbers, hashes, OIDs) */
+  --font-heading: "Space Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+
+.font-heading {
+  font-family: var(--font-heading);
+}
+
+.font-body,
+.font-sans {
+  font-family: var(--font-sans);
+}
+
+.font-mono {
+  font-family: var(--font-mono);
 }
 
 body {
   background-color: var(--page);
   color: var(--ink);
   font-family: var(--font-sans);
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* Row entrance animation (data load only — hover states stay instant,
@@ -175,10 +182,10 @@ body {
 @keyframes signal-pulse {
   0%,
   100% {
-    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--ink) 30%, transparent);
   }
   50% {
-    box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 0%, transparent);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--ink) 0%, transparent);
   }
 }
 
@@ -235,12 +242,53 @@ body {
   animation: hash-flash 500ms ease-out both;
 }
 
+/* Slide-over drawers (e.g. Code view's "All Issues" panel): the panel
+   itself enters from the right, distinct from the plain fade/slide-up
+   `mode-in`/`row-in` used for inline content. */
+@keyframes drawer-in {
+  from {
+    transform: translateX(32px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.animate-drawer-in {
+  animation: drawer-in 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-row-in,
   .animate-signal-pulse,
   .animate-mode-in,
   .animate-overflow-pulse,
-  .animate-hash-flash {
+  .animate-hash-flash,
+  .animate-drawer-in {
     animation: none;
+  }
+}
+
+/* Print / PDF generation styles */
+@media print {
+  aside,
+  button,
+  input,
+  #pdf-pages-container {
+    display: none !important;
+  }
+  body,
+  html {
+    background-color: #ffffff !important;
+    color: #0b0e13 !important;
+    overflow: visible !important;
+    height: auto !important;
+  }
+  .bg-page,
+  .bg-surface,
+  .bg-surface-2 {
+    background-color: #ffffff !important;
   }
 }

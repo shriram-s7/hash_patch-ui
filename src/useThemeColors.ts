@@ -5,8 +5,10 @@ const VAR_NAMES = [
   "--status-warning",
   "--status-good",
   "--status-neutral-fg",
+  "--status-opaque",
   "--accent",
   "--ink",
+  "--ink-secondary",
   "--ink-muted",
   "--line",
   "--surface",
@@ -42,6 +44,7 @@ const QUANTUM_STATUS_COLOR_VAR: Record<string, keyof ThemeColors> = {
   "quantum-safe": "--status-good",
   "broken-classically": "--status-neutral-fg",
   unknown: "--status-neutral-fg",
+  "algorithm-opaque-provider-managed": "--status-opaque",
 };
 
 export function quantumStatusColor(colors: ThemeColors, status: string | undefined): string {

@@ -31,7 +31,7 @@ export function ModeSwitcher({
             aria-current={active ? "true" : undefined}
             onClick={() => onChange(mode.id)}
             className={`rounded-[2px] px-2.5 py-1 text-xs font-medium uppercase tracking-wide ${
-              active ? "bg-accent text-accent-fg" : "text-ink-secondary hover:text-ink"
+              active ? "bg-surface-2 text-ink font-semibold" : "text-ink-secondary hover:text-ink font-normal"
             }`}
           >
             {mode.label}

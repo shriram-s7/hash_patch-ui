@@ -1,0 +1,1259 @@
+{
+  "$schema": "http://cyclonedx.org/schema/bom-1.6.schema.json",
+  "bomFormat": "CycloneDX",
+  "components": [
+    {
+      "bom-ref": "crypto-asset:0bc08e7c46bb9424a1490e782f5c64b7",
+      "cryptoProperties": {
+        "algorithmProperties": {
+          "primitive": "kem"
+        },
+        "assetType": "algorithm"
+      },
+      "evidence": {
+        "occurrences": [
+          {
+            "additionalContext": "{\"snippet\": \"Embedded algorithm string: Kyber (offset 0x4c)\", \"source_type\": \"binary\"}",
+            "location": "container://mixed-service:2.0@bbf53c49070e/usr/bin/server",
+            "offset": 76
+          }
+        ]
+      },
+      "name": "Kyber",
+      "properties": [
+        {
+          "name": "hash_patch:confidence",
+          "value": "low"
+        },
+        {
+          "name": "hash_patch:detectorId",
+          "value": "binary-crypto"
+        },
+        {
+          "name": "hash_patch:detectorVersion",
+          "value": "0.1.0"
+        },
+        {
+          "name": "hash_patch:findingType",
+          "value": "COMPILED_CRYPTO_ARTEFACT"
+        },
+        {
+          "name": "hash_patch:property.algorithm",
+          "value": "Kyber"
+        },
+        {
+          "name": "hash_patch:property.architecture",
+          "value": "x86_64"
+        },
+        {
+          "name": "hash_patch:property.assetType",
+          "value": "container_image"
+        },
+        {
+          "name": "hash_patch:property.binaryFormat",
+          "value": "ELF"
+        },
+        {
+          "name": "hash_patch:property.containerImage",
+          "value": "mixed-service:2.0"
+        },
+        {
+          "name": "hash_patch:property.effectiveFs",
+          "value": "true"
+        },
+        {
+          "name": "hash_patch:property.evidenceType",
+          "value": "algorithm_string"
+        },
+        {
+          "name": "hash_patch:property.honestFraming",
+          "value": "Cryptographic binary evidence observed inside container image; runtime execution is not independently verified."
+        },
+        {
+          "name": "hash_patch:property.imageDigest",
+          "value": "sha256:488c754358550e5d7966eee6e62f512ada9465df907da7874abd276501000fee"
+        },
+        {
+          "name": "hash_patch:property.layerDigest",
+          "value": "sha256:bbf53c49070eb8b2ddb9f71681844fb901f239d730c2a09a897e764a9907b4bf"
+        },
+        {
+          "name": "hash_patch:property.library",
+          "value": "unknown"
+        },
+        {
+          "name": "hash_patch:property.observedValue",
+          "value": "Kyber"
+        },
+        {
+          "name": "hash_patch:property.operation",
+          "value": "string_constant"
+        },
+        {
+          "name": "hash_patch:property.pathInsideContainer",
+          "value": "/usr/bin/server"
+        },
+        {
+          "name": "hash_patch:property.verificationScope",
+          "value": "container_binary_observation"
+        },
+        {
+          "name": "hash_patch:quantumStatus",
+          "value": "quantum-safe"
+        },
+        {
+          "name": "hash_patch:reachability",
+          "value": "unknown"
+        }
+      ],
+      "type": "cryptographic-asset"
+    },
+    {
+      "bom-ref": "crypto-asset:30b08acf6962431eaa35e934bc7eeeca",
+      "cryptoProperties": {
+        "algorithmProperties": {
+          "primitive": "block-cipher"
+        },
+        "assetType": "algorithm",
+        "oid": "2.16.840.1.101.3.4.1"
+      },
+      "evidence": {
+        "occurrences": [
+          {
+            "additionalContext": "{\"snippet\": \"Observed cryptographic symbol: AES_encrypt (AES)\", \"source_type\": \"binary\"}",
+            "location": "container://mixed-service:2.0@bbf53c49070e/usr/bin/server"
+          }
+        ]
+      },
+      "name": "AES",
+      "properties": [
+        {
+          "name": "hash_patch:confidence",
+          "value": "confirmed"
+        },
+        {
+          "name": "hash_patch:detectorId",
+          "value": "binary-crypto"
+        },
+        {
+          "name": "hash_patch:detectorVersion",
+          "value": "0.1.0"
+        },
+        {
+          "name": "hash_patch:findingType",
+          "value": "COMPILED_CRYPTO_ARTEFACT"
+        },
+        {
+          "name": "hash_patch:property.algorithm",
+          "value": "AES"
+        },
+        {
+          "name": "hash_patch:property.architecture",
+          "value": "x86_64"
+        },
+        {
+          "name": "hash_patch:property.assetType",
+          "value": "container_image"
+        },
+        {
+          "name": "hash_patch:property.binaryFormat",
+          "value": "ELF"
+        },
+        {
+          "name": "hash_patch:property.containerImage",
+          "value": "mixed-service:2.0"
+        },
+        {
+          "name": "hash_patch:property.effectiveFs",
+          "value": "true"
+        },
+        {
+          "name": "hash_patch:property.evidenceType",
+          "value": "symbol"
+        },
+        {
+          "name": "hash_patch:property.honestFraming",
+          "value": "Cryptographic binary evidence observed inside container image; runtime execution is not independently verified."
+        },
+        {
+          "name": "hash_patch:property.imageDigest",
+          "value": "sha256:488c754358550e5d7966eee6e62f512ada9465df907da7874abd276501000fee"
+        },
+        {
+          "name": "hash_patch:property.layerDigest",
+          "value": "sha256:bbf53c49070eb8b2ddb9f71681844fb901f239d730c2a09a897e764a9907b4bf"
+        },
+        {
+          "name": "hash_patch:property.library",
+          "value": "OpenSSL/libcrypto"
+        },
+        {
+          "name": "hash_patch:property.observedValue",
+          "value": "AES_encrypt"
+        },
+        {
+          "name": "hash_patch:property.operation",
+          "value": "encrypt"
+        },
+        {
+          "name": "hash_patch:property.pathInsideContainer",
+          "value": "/usr/bin/server"
+        },
+        {
+          "name": "hash_patch:property.verificationScope",
+          "value": "container_binary_observation"
+        },
+        {
+          "name": "hash_patch:quantumStatus",
+          "value": "weakened-by-grover"
+        },
+        {
+          "name": "hash_patch:reachability",
+          "value": "unknown"
+        }
+      ],
+      "type": "cryptographic-asset"
+    },
+    {
+      "bom-ref": "crypto-asset:43881076677c8df2564de0238139b04f",
+      "cryptoProperties": {
+        "algorithmProperties": {
+          "primitive": "block-cipher"
+        },
+        "assetType": "algorithm",
+        "oid": "2.16.840.1.101.3.4.1"
+      },
+      "evidence": {
+        "occurrences": [
+          {
+            "additionalContext": "{\"column\": 20, \"snippet\": \"algorithms.AES(key)\", \"source_type\": \"container\"}",
+            "line": 8,
+            "location": "container://mixed-service:2.0@9edfd4d6588a/app/service.py",
+            "offset": 241
+          }
+        ]
+      },
+      "name": "AES",
+      "properties": [
+        {
+          "name": "hash_patch:confidence",
+          "value": "confirmed"
+        },
+        {
+          "name": "hash_patch:detectorId",
+          "value": "python-crypto"
+        },
+        {
+          "name": "hash_patch:detectorVersion",
+          "value": "0.1.0"
+        },
+        {
+          "name": "hash_patch:property.assetType",
+          "value": "container_image"
+        },
+        {
+          "name": "hash_patch:property.containerImage",
+          "value": "mixed-service:2.0"
+        },
+        {
+          "name": "hash_patch:property.effectiveFs",
+          "value": "true"
+        },
+        {
+          "name": "hash_patch:property.honestFraming",
+          "value": "Cryptographic operation observed in source contained in the container image; runtime execution is not verified."
+        },
+        {
+          "name": "hash_patch:property.imageDigest",
+          "value": "sha256:488c754358550e5d7966eee6e62f512ada9465df907da7874abd276501000fee"
+        },
+        {
+          "name": "hash_patch:property.layerDigest",
+          "value": "sha256:9edfd4d6588a8a356f8c7de7ac5e3b8d01cc868a308564b6e06ca48f2353c06a"
+        },
+        {
+          "name": "hash_patch:property.pathInsideContainer",
+          "value": "/app/service.py"
+        },
+        {
+          "name": "hash_patch:property.verificationScope",
+          "value": "container_static_source"
+        },
+        {
+          "name": "hash_patch:quantumStatus",
+          "value": "weakened-by-grover"
+        },
+        {
+          "name": "hash_patch:reachability",
+          "value": "unknown"
+        }
+      ],
+      "type": "cryptographic-asset"
+    },
+    {
+      "bom-ref": "crypto-asset:45ccb45674487af0a38a4b9419e8c70c",
+      "cryptoProperties": {
+        "algorithmProperties": {
+          "parameterSetIdentifier": "256",
+          "primitive": "hash"
+        },
+        "assetType": "algorithm",
+        "oid": "2.16.840.1.101.3.4.2.1"
+      },
+      "evidence": {
+        "occurrences": [
+          {
+            "additionalContext": "{\"column\": 11, \"snippet\": \"hashlib.sha256(d)\", \"source_type\": \"container\"}",
+            "line": 5,
+            "location": "container://mixed-service:2.0@9edfd4d6588a/app/service.py",
+            "offset": 136
+          }
+        ]
+      },
+      "name": "SHA-256",
+      "properties": [
+        {
+          "name": "hash_patch:confidence",
+          "value": "confirmed"
+        },
+        {
+          "name": "hash_patch:detectorId",
+          "value": "python-crypto"
+        },
+        {
+          "name": "hash_patch:detectorVersion",
+          "value": "0.1.0"
+        },
+        {
+          "name": "hash_patch:property.assetType",
+          "value": "container_image"
+        },
+        {
+          "name": "hash_patch:property.containerImage",
+          "value": "mixed-service:2.0"
+        },
+        {
+          "name": "hash_patch:property.effectiveFs",
+          "value": "true"
+        },
+        {
+          "name": "hash_patch:property.honestFraming",
+          "value": "Cryptographic operation observed in source contained in the container image; runtime execution is not verified."
+        },
+        {
+          "name": "hash_patch:property.imageDigest",
+          "value": "sha256:488c754358550e5d7966eee6e62f512ada9465df907da7874abd276501000fee"
+        },
+        {
+          "name": "hash_patch:property.layerDigest",
+          "value": "sha256:9edfd4d6588a8a356f8c7de7ac5e3b8d01cc868a308564b6e06ca48f2353c06a"
+        },
+        {
+          "name": "hash_patch:property.pathInsideContainer",
+          "value": "/app/service.py"
+        },
+        {
+          "name": "hash_patch:property.verificationScope",
+          "value": "container_static_source"
+        },
+        {
+          "name": "hash_patch:quantumStatus",
+          "value": "weakened-by-grover"
+        },
+        {
+          "name": "hash_patch:reachability",
+          "value": "unknown"
+        }
+      ],
+      "type": "cryptographic-asset"
+    },
+    {
+      "bom-ref": "crypto-asset:4c95634f78216a46e12af533cebb33f0",
+      "cryptoProperties": {
+        "algorithmProperties": {
+          "parameterSetIdentifier": "256",
+          "primitive": "hash"
+        },
+        "assetType": "algorithm",
+        "oid": "2.16.840.1.101.3.4.2.1"
+      },
+      "evidence": {
+        "occurrences": [
+          {
+            "additionalContext": "{\"snippet\": \"Embedded algorithm string: SHA-256 (offset 0x52)\", \"source_type\": \"binary\"}",
+            "location": "container://mixed-service:2.0@bbf53c49070e/usr/bin/server",
+            "offset": 82
+          }
+        ]
+      },
+      "name": "SHA-256",
+      "properties": [
+        {
+          "name": "hash_patch:confidence",
+          "value": "low"
+        },
+        {
+          "name": "hash_patch:detectorId",
+          "value": "binary-crypto"
+        },
+        {
+          "name": "hash_patch:detectorVersion",
+          "value": "0.1.0"
+        },
+        {
+          "name": "hash_patch:findingType",
+          "value": "COMPILED_CRYPTO_ARTEFACT"
+        },
+        {
+          "name": "hash_patch:property.algorithm",
+          "value": "SHA-256"
+        },
+        {
+          "name": "hash_patch:property.architecture",
+          "value": "x86_64"
+        },
+        {
+          "name": "hash_patch:property.assetType",
+          "value": "container_image"
+        },
+        {
+          "name": "hash_patch:property.binaryFormat",
+          "value": "ELF"
+        },
+        {
+          "name": "hash_patch:property.containerImage",
+          "value": "mixed-service:2.0"
+        },
+        {
+          "name": "hash_patch:property.effectiveFs",
+          "value": "true"
+        },
+        {
+          "name": "hash_patch:property.evidenceType",
+          "value": "algorithm_string"
+        },
+        {
+          "name": "hash_patch:property.honestFraming",
+          "value": "Cryptographic binary evidence observed inside container image; runtime execution is not independently verified."
+        },
+        {
+          "name": "hash_patch:property.imageDigest",
+          "value": "sha256:488c754358550e5d7966eee6e62f512ada9465df907da7874abd276501000fee"
+        },
+        {
+          "name": "hash_patch:property.layerDigest",
+          "value": "sha256:bbf53c49070eb8b2ddb9f71681844fb901f239d730c2a09a897e764a9907b4bf"
+        },
+        {
+          "name": "hash_patch:property.library",
+          "value": "unknown"
+        },
+        {
+          "name": "hash_patch:property.observedValue",
+          "value": "SHA-256"
+        },
+        {
+          "name": "hash_patch:property.operation",
+          "value": "string_constant"
+        },
+        {
+          "name": "hash_patch:property.pathInsideContainer",
+          "value": "/usr/bin/server"
+        },
+        {
+          "name": "hash_patch:property.verificationScope",
+          "value": "container_binary_observation"
+        },
+        {
+          "name": "hash_patch:quantumStatus",
+          "value": "weakened-by-grover"
+        },
+        {
+          "name": "hash_patch:reachability",
+          "value": "unknown"
+        }
+      ],
+      "type": "cryptographic-asset"
+    },
+    {
+      "bom-ref": "crypto-asset:58e1030d5b67d125e1554d10612a709c",
+      "cryptoProperties": {
+        "assetType": "related-crypto-material"
+      },
+      "evidence": {
+        "occurrences": [
+          {
+            "additionalContext": "{\"column\": 35, \"snippet\": \"self.kms_client.encrypt(KeyId=\\\"alias/protect\\\", Plaintext=plaintext)\", \"source_type\": \"container\"}",
+            "line": 9,
+            "location": "container://mixed-service:2.0@9edfd4d6588a/app/cloud_service.py",
+            "offset": 239
+          }
+        ]
+      },
+      "name": "AWS KMS encrypt",
+      "properties": [
+        {
+          "name": "hash_patch:confidence",
+          "value": "confirmed"
+        },
+        {
+          "name": "hash_patch:detectorId",
+          "value": "python-cloud-kms"
+        },
+        {
+          "name": "hash_patch:detectorVersion",
+          "value": "0.1.0"
+        },
+        {
+          "name": "hash_patch:findingType",
+          "value": "CLOUD_KEY_OPERATION"
+        },
+        {
+          "name": "hash_patch:property.assetType",
+          "value": "container_image"
+        },
+        {
+          "name": "hash_patch:property.cloudKey.operation",
+          "value": "encrypt"
+        },
+        {
+          "name": "hash_patch:property.cloudKey.provider",
+          "value": "aws"
+        },
+        {
+          "name": "hash_patch:property.cloudKey.sdk",
+          "value": "boto3"
+        },
+        {
+          "name": "hash_patch:property.cloudKey.verificationScope",
+          "value": "client_call_only"
+        },
+        {
+          "name": "hash_patch:property.containerImage",
+          "value": "mixed-service:2.0"
+        },
+        {
+          "name": "hash_patch:property.effectiveFs",
+          "value": "true"
+        },
+        {
+          "name": "hash_patch:property.honestFraming",
+          "value": "Cloud KMS client call observed in container image source; provider-side configuration is not verified."
+        },
+        {
+          "name": "hash_patch:property.imageDigest",
+          "value": "sha256:488c754358550e5d7966eee6e62f512ada9465df907da7874abd276501000fee"
+        },
+        {
+          "name": "hash_patch:property.layerDigest",
+          "value": "sha256:9edfd4d6588a8a356f8c7de7ac5e3b8d01cc868a308564b6e06ca48f2353c06a"
+        },
+        {
+          "name": "hash_patch:property.operation",
+          "value": "encrypt"
+        },
+        {
+          "name": "hash_patch:property.pathInsideContainer",
+          "value": "/app/cloud_service.py"
+        },
+        {
+          "name": "hash_patch:property.verificationScope",
+          "value": "container_cloud_kms_call"
+        },
+        {
+          "name": "hash_patch:quantumStatus",
+          "value": "algorithm-opaque-provider-managed"
+        },
+        {
+          "name": "hash_patch:reachability",
+          "value": "unknown"
+        }
+      ],
+      "type": "cryptographic-asset"
+    },
+    {
+      "bom-ref": "crypto-asset:83acefd9c695a28a0018a41be2395da6",
+      "cryptoProperties": {
+        "algorithmProperties": {
+          "primitive": "other"
+        },
+        "assetType": "algorithm"
+      },
+      "evidence": {
+        "occurrences": [
+          {
+            "additionalContext": "{\"snippet\": \"Linked cryptographic library dependency: libcrypto.so.3\", \"source_type\": \"binary\"}",
+            "location": "container://mixed-service:2.0@bbf53c49070e/usr/bin/server"
+          }
+        ]
+      },
+      "name": "OpenSSL/libcrypto",
+      "properties": [
+        {
+          "name": "hash_patch:confidence",
+          "value": "confirmed"
+        },
+        {
+          "name": "hash_patch:detectorId",
+          "value": "binary-crypto"
+        },
+        {
+          "name": "hash_patch:detectorVersion",
+          "value": "0.1.0"
+        },
+        {
+          "name": "hash_patch:findingType",
+          "value": "COMPILED_CRYPTO_ARTEFACT"
+        },
+        {
+          "name": "hash_patch:property.algorithm",
+          "value": "unknown"
+        },
+        {
+          "name": "hash_patch:property.architecture",
+          "value": "x86_64"
+        },
+        {
+          "name": "hash_patch:property.assetType",
+          "value": "container_image"
+        },
+        {
+          "name": "hash_patch:property.binaryFormat",
+          "value": "ELF"
+        },
+        {
+          "name": "hash_patch:property.containerImage",
+          "value": "mixed-service:2.0"
+        },
+        {
+          "name": "hash_patch:property.effectiveFs",
+          "value": "true"
+        },
+        {
+          "name": "hash_patch:property.evidenceType",
+          "value": "linked_library"
+        },
+        {
+          "name": "hash_patch:property.honestFraming",
+          "value": "Cryptographic binary evidence observed inside container image; runtime execution is not independently verified."
+        },
+        {
+          "name": "hash_patch:property.imageDigest",
+          "value": "sha256:488c754358550e5d7966eee6e62f512ada9465df907da7874abd276501000fee"
+        },
+        {
+          "name": "hash_patch:property.layerDigest",
+          "value": "sha256:bbf53c49070eb8b2ddb9f71681844fb901f239d730c2a09a897e764a9907b4bf"
+        },
+        {
+          "name": "hash_patch:property.library",
+          "value": "OpenSSL/libcrypto"
+        },
+        {
+          "name": "hash_patch:property.observedValue",
+          "value": "libcrypto.so.3"
+        },
+        {
+          "name": "hash_patch:property.operation",
+          "value": "library_linkage"
+        },
+        {
+          "name": "hash_patch:property.pathInsideContainer",
+          "value": "/usr/bin/server"
+        },
+        {
+          "name": "hash_patch:property.verificationScope",
+          "value": "container_binary_observation"
+        },
+        {
+          "name": "hash_patch:quantumStatus",
+          "value": "unknown"
+        },
+        {
+          "name": "hash_patch:reachability",
+          "value": "unknown"
+        }
+      ],
+      "type": "cryptographic-asset"
+    },
+    {
+      "bom-ref": "crypto-asset:87fcc47cfe26cdd3195d6aa50942f56f",
+      "cryptoProperties": {
+        "assetType": "related-crypto-material"
+      },
+      "evidence": {
+        "occurrences": [
+          {
+            "additionalContext": "{\"column\": 35, \"snippet\": \"self.kms_client.decrypt(CiphertextBlob=blob)\", \"source_type\": \"container\"}",
+            "line": 13,
+            "location": "container://mixed-service:2.0@9edfd4d6588a/app/cloud_service.py",
+            "offset": 416
+          }
+        ]
+      },
+      "name": "AWS KMS decrypt",
+      "properties": [
+        {
+          "name": "hash_patch:confidence",
+          "value": "confirmed"
+        },
+        {
+          "name": "hash_patch:detectorId",
+          "value": "python-cloud-kms"
+        },
+        {
+          "name": "hash_patch:detectorVersion",
+          "value": "0.1.0"
+        },
+        {
+          "name": "hash_patch:findingType",
+          "value": "CLOUD_KEY_OPERATION"
+        },
+        {
+          "name": "hash_patch:property.assetType",
+          "value": "container_image"
+        },
+        {
+          "name": "hash_patch:property.cloudKey.operation",
+          "value": "decrypt"
+        },
+        {
+          "name": "hash_patch:property.cloudKey.provider",
+          "value": "aws"
+        },
+        {
+          "name": "hash_patch:property.cloudKey.sdk",
+          "value": "boto3"
+        },
+        {
+          "name": "hash_patch:property.cloudKey.verificationScope",
+          "value": "client_call_only"
+        },
+        {
+          "name": "hash_patch:property.containerImage",
+          "value": "mixed-service:2.0"
+        },
+        {
+          "name": "hash_patch:property.effectiveFs",
+          "value": "true"
+        },
+        {
+          "name": "hash_patch:property.honestFraming",
+          "value": "Cloud KMS client call observed in container image source; provider-side configuration is not verified."
+        },
+        {
+          "name": "hash_patch:property.imageDigest",
+          "value": "sha256:488c754358550e5d7966eee6e62f512ada9465df907da7874abd276501000fee"
+        },
+        {
+          "name": "hash_patch:property.layerDigest",
+          "value": "sha256:9edfd4d6588a8a356f8c7de7ac5e3b8d01cc868a308564b6e06ca48f2353c06a"
+        },
+        {
+          "name": "hash_patch:property.operation",
+          "value": "decrypt"
+        },
+        {
+          "name": "hash_patch:property.pathInsideContainer",
+          "value": "/app/cloud_service.py"
+        },
+        {
+          "name": "hash_patch:property.verificationScope",
+          "value": "container_cloud_kms_call"
+        },
+        {
+          "name": "hash_patch:quantumStatus",
+          "value": "algorithm-opaque-provider-managed"
+        },
+        {
+          "name": "hash_patch:reachability",
+          "value": "unknown"
+        }
+      ],
+      "type": "cryptographic-asset"
+    },
+    {
+      "bom-ref": "crypto-asset:89289eb8aec1a1e9c67050a49ec8e04b",
+      "cryptoProperties": {
+        "assetType": "certificate"
+      },
+      "evidence": {
+        "occurrences": [
+          {
+            "additionalContext": "{\"snippet\": \"Embedded PEM certificate structure at offset 0x5a\", \"source_type\": \"binary\"}",
+            "location": "container://mixed-service:2.0@bbf53c49070e/usr/bin/server",
+            "offset": 90
+          }
+        ]
+      },
+      "name": "Embedded-Certificate",
+      "properties": [
+        {
+          "name": "hash_patch:confidence",
+          "value": "confirmed"
+        },
+        {
+          "name": "hash_patch:detectorId",
+          "value": "binary-crypto"
+        },
+        {
+          "name": "hash_patch:detectorVersion",
+          "value": "0.1.0"
+        },
+        {
+          "name": "hash_patch:findingType",
+          "value": "COMPILED_CRYPTO_ARTEFACT"
+        },
+        {
+          "name": "hash_patch:property.algorithm",
+          "value": "X.509"
+        },
+        {
+          "name": "hash_patch:property.architecture",
+          "value": "x86_64"
+        },
+        {
+          "name": "hash_patch:property.assetType",
+          "value": "container_image"
+        },
+        {
+          "name": "hash_patch:property.binaryFormat",
+          "value": "ELF"
+        },
+        {
+          "name": "hash_patch:property.containerImage",
+          "value": "mixed-service:2.0"
+        },
+        {
+          "name": "hash_patch:property.effectiveFs",
+          "value": "true"
+        },
+        {
+          "name": "hash_patch:property.evidenceType",
+          "value": "certificate"
+        },
+        {
+          "name": "hash_patch:property.honestFraming",
+          "value": "Cryptographic binary evidence observed inside container image; runtime execution is not independently verified."
+        },
+        {
+          "name": "hash_patch:property.imageDigest",
+          "value": "sha256:488c754358550e5d7966eee6e62f512ada9465df907da7874abd276501000fee"
+        },
+        {
+          "name": "hash_patch:property.layerDigest",
+          "value": "sha256:bbf53c49070eb8b2ddb9f71681844fb901f239d730c2a09a897e764a9907b4bf"
+        },
+        {
+          "name": "hash_patch:property.library",
+          "value": "unknown"
+        },
+        {
+          "name": "hash_patch:property.observedValue",
+          "value": "PEM Certificate"
+        },
+        {
+          "name": "hash_patch:property.operation",
+          "value": "certificate_storage"
+        },
+        {
+          "name": "hash_patch:property.pathInsideContainer",
+          "value": "/usr/bin/server"
+        },
+        {
+          "name": "hash_patch:property.verificationScope",
+          "value": "container_binary_observation"
+        },
+        {
+          "name": "hash_patch:quantumStatus",
+          "value": "unknown"
+        },
+        {
+          "name": "hash_patch:reachability",
+          "value": "unknown"
+        }
+      ],
+      "type": "cryptographic-asset"
+    },
+    {
+      "bom-ref": "crypto-asset:ba98fafe69b99afd2d89753a2e767e1b",
+      "cryptoProperties": {
+        "algorithmProperties": {
+          "primitive": "pke"
+        },
+        "assetType": "algorithm",
+        "oid": "1.2.840.113549.1.1.1"
+      },
+      "evidence": {
+        "occurrences": [
+          {
+            "additionalContext": "{\"snippet\": \"Observed cryptographic symbol: RSA_public_encrypt (RSA)\", \"source_type\": \"binary\"}",
+            "location": "container://mixed-service:2.0@bbf53c49070e/usr/bin/server"
+          }
+        ]
+      },
+      "name": "RSA",
+      "properties": [
+        {
+          "name": "hash_patch:confidence",
+          "value": "confirmed"
+        },
+        {
+          "name": "hash_patch:detectorId",
+          "value": "binary-crypto"
+        },
+        {
+          "name": "hash_patch:detectorVersion",
+          "value": "0.1.0"
+        },
+        {
+          "name": "hash_patch:findingType",
+          "value": "COMPILED_CRYPTO_ARTEFACT"
+        },
+        {
+          "name": "hash_patch:property.algorithm",
+          "value": "RSA"
+        },
+        {
+          "name": "hash_patch:property.architecture",
+          "value": "x86_64"
+        },
+        {
+          "name": "hash_patch:property.assetType",
+          "value": "container_image"
+        },
+        {
+          "name": "hash_patch:property.binaryFormat",
+          "value": "ELF"
+        },
+        {
+          "name": "hash_patch:property.containerImage",
+          "value": "mixed-service:2.0"
+        },
+        {
+          "name": "hash_patch:property.effectiveFs",
+          "value": "true"
+        },
+        {
+          "name": "hash_patch:property.evidenceType",
+          "value": "symbol"
+        },
+        {
+          "name": "hash_patch:property.honestFraming",
+          "value": "Cryptographic binary evidence observed inside container image; runtime execution is not independently verified."
+        },
+        {
+          "name": "hash_patch:property.imageDigest",
+          "value": "sha256:488c754358550e5d7966eee6e62f512ada9465df907da7874abd276501000fee"
+        },
+        {
+          "name": "hash_patch:property.layerDigest",
+          "value": "sha256:bbf53c49070eb8b2ddb9f71681844fb901f239d730c2a09a897e764a9907b4bf"
+        },
+        {
+          "name": "hash_patch:property.library",
+          "value": "OpenSSL/libcrypto"
+        },
+        {
+          "name": "hash_patch:property.observedValue",
+          "value": "RSA_public_encrypt"
+        },
+        {
+          "name": "hash_patch:property.operation",
+          "value": "encrypt"
+        },
+        {
+          "name": "hash_patch:property.pathInsideContainer",
+          "value": "/usr/bin/server"
+        },
+        {
+          "name": "hash_patch:property.verificationScope",
+          "value": "container_binary_observation"
+        },
+        {
+          "name": "hash_patch:quantumStatus",
+          "value": "broken-by-shor"
+        },
+        {
+          "name": "hash_patch:reachability",
+          "value": "unknown"
+        }
+      ],
+      "type": "cryptographic-asset"
+    },
+    {
+      "bom-ref": "crypto-asset:eace6ab18f91e277cd0d85f9fdfb3d9e",
+      "cryptoProperties": {
+        "algorithmProperties": {
+          "primitive": "signature"
+        },
+        "assetType": "algorithm",
+        "oid": "1.2.840.10045.2.1"
+      },
+      "evidence": {
+        "occurrences": [
+          {
+            "additionalContext": "{\"snippet\": \"Observed cryptographic symbol: ECDSA_sign (ECDSA)\", \"source_type\": \"binary\"}",
+            "location": "container://mixed-service:2.0@bbf53c49070e/usr/bin/server"
+          }
+        ]
+      },
+      "name": "ECDSA",
+      "properties": [
+        {
+          "name": "hash_patch:confidence",
+          "value": "confirmed"
+        },
+        {
+          "name": "hash_patch:detectorId",
+          "value": "binary-crypto"
+        },
+        {
+          "name": "hash_patch:detectorVersion",
+          "value": "0.1.0"
+        },
+        {
+          "name": "hash_patch:findingType",
+          "value": "COMPILED_CRYPTO_ARTEFACT"
+        },
+        {
+          "name": "hash_patch:property.algorithm",
+          "value": "ECDSA"
+        },
+        {
+          "name": "hash_patch:property.architecture",
+          "value": "x86_64"
+        },
+        {
+          "name": "hash_patch:property.assetType",
+          "value": "container_image"
+        },
+        {
+          "name": "hash_patch:property.binaryFormat",
+          "value": "ELF"
+        },
+        {
+          "name": "hash_patch:property.containerImage",
+          "value": "mixed-service:2.0"
+        },
+        {
+          "name": "hash_patch:property.effectiveFs",
+          "value": "true"
+        },
+        {
+          "name": "hash_patch:property.evidenceType",
+          "value": "symbol"
+        },
+        {
+          "name": "hash_patch:property.honestFraming",
+          "value": "Cryptographic binary evidence observed inside container image; runtime execution is not independently verified."
+        },
+        {
+          "name": "hash_patch:property.imageDigest",
+          "value": "sha256:488c754358550e5d7966eee6e62f512ada9465df907da7874abd276501000fee"
+        },
+        {
+          "name": "hash_patch:property.layerDigest",
+          "value": "sha256:bbf53c49070eb8b2ddb9f71681844fb901f239d730c2a09a897e764a9907b4bf"
+        },
+        {
+          "name": "hash_patch:property.library",
+          "value": "OpenSSL/libcrypto"
+        },
+        {
+          "name": "hash_patch:property.observedValue",
+          "value": "ECDSA_sign"
+        },
+        {
+          "name": "hash_patch:property.operation",
+          "value": "signature"
+        },
+        {
+          "name": "hash_patch:property.pathInsideContainer",
+          "value": "/usr/bin/server"
+        },
+        {
+          "name": "hash_patch:property.verificationScope",
+          "value": "container_binary_observation"
+        },
+        {
+          "name": "hash_patch:quantumStatus",
+          "value": "broken-by-shor"
+        },
+        {
+          "name": "hash_patch:reachability",
+          "value": "unknown"
+        }
+      ],
+      "type": "cryptographic-asset"
+    },
+    {
+      "bom-ref": "crypto-asset:f83e9c94258f83209942c703100a3c59",
+      "cryptoProperties": {
+        "algorithmProperties": {
+          "mode": "gcm",
+          "parameterSetIdentifier": "256",
+          "primitive": "block-cipher"
+        },
+        "assetType": "algorithm",
+        "oid": "2.16.840.1.101.3.4.1"
+      },
+      "evidence": {
+        "occurrences": [
+          {
+            "additionalContext": "{\"snippet\": \"Embedded algorithm string: AES-256-GCM (offset 0x40)\", \"source_type\": \"binary\"}",
+            "location": "container://mixed-service:2.0@bbf53c49070e/usr/bin/server",
+            "offset": 64
+          }
+        ]
+      },
+      "name": "AES",
+      "properties": [
+        {
+          "name": "hash_patch:confidence",
+          "value": "low"
+        },
+        {
+          "name": "hash_patch:detectorId",
+          "value": "binary-crypto"
+        },
+        {
+          "name": "hash_patch:detectorVersion",
+          "value": "0.1.0"
+        },
+        {
+          "name": "hash_patch:findingType",
+          "value": "COMPILED_CRYPTO_ARTEFACT"
+        },
+        {
+          "name": "hash_patch:property.algorithm",
+          "value": "AES"
+        },
+        {
+          "name": "hash_patch:property.architecture",
+          "value": "x86_64"
+        },
+        {
+          "name": "hash_patch:property.assetType",
+          "value": "container_image"
+        },
+        {
+          "name": "hash_patch:property.binaryFormat",
+          "value": "ELF"
+        },
+        {
+          "name": "hash_patch:property.containerImage",
+          "value": "mixed-service:2.0"
+        },
+        {
+          "name": "hash_patch:property.effectiveFs",
+          "value": "true"
+        },
+        {
+          "name": "hash_patch:property.evidenceType",
+          "value": "algorithm_string"
+        },
+        {
+          "name": "hash_patch:property.honestFraming",
+          "value": "Cryptographic binary evidence observed inside container image; runtime execution is not independently verified."
+        },
+        {
+          "name": "hash_patch:property.imageDigest",
+          "value": "sha256:488c754358550e5d7966eee6e62f512ada9465df907da7874abd276501000fee"
+        },
+        {
+          "name": "hash_patch:property.layerDigest",
+          "value": "sha256:bbf53c49070eb8b2ddb9f71681844fb901f239d730c2a09a897e764a9907b4bf"
+        },
+        {
+          "name": "hash_patch:property.library",
+          "value": "unknown"
+        },
+        {
+          "name": "hash_patch:property.observedValue",
+          "value": "AES-256-GCM"
+        },
+        {
+          "name": "hash_patch:property.operation",
+          "value": "string_constant"
+        },
+        {
+          "name": "hash_patch:property.pathInsideContainer",
+          "value": "/usr/bin/server"
+        },
+        {
+          "name": "hash_patch:property.verificationScope",
+          "value": "container_binary_observation"
+        },
+        {
+          "name": "hash_patch:quantumStatus",
+          "value": "weakened-by-grover"
+        },
+        {
+          "name": "hash_patch:reachability",
+          "value": "unknown"
+        }
+      ],
+      "type": "cryptographic-asset"
+    }
+  ],
+  "dependencies": [
+    {
+      "ref": "crypto-asset:0bc08e7c46bb9424a1490e782f5c64b7"
+    },
+    {
+      "ref": "crypto-asset:30b08acf6962431eaa35e934bc7eeeca"
+    },
+    {
+      "ref": "crypto-asset:43881076677c8df2564de0238139b04f"
+    },
+    {
+      "ref": "crypto-asset:45ccb45674487af0a38a4b9419e8c70c"
+    },
+    {
+      "ref": "crypto-asset:4c95634f78216a46e12af533cebb33f0"
+    },
+    {
+      "ref": "crypto-asset:58e1030d5b67d125e1554d10612a709c"
+    },
+    {
+      "ref": "crypto-asset:83acefd9c695a28a0018a41be2395da6"
+    },
+    {
+      "ref": "crypto-asset:87fcc47cfe26cdd3195d6aa50942f56f"
+    },
+    {
+      "ref": "crypto-asset:89289eb8aec1a1e9c67050a49ec8e04b"
+    },
+    {
+      "ref": "crypto-asset:ba98fafe69b99afd2d89753a2e767e1b"
+    },
+    {
+      "ref": "crypto-asset:eace6ab18f91e277cd0d85f9fdfb3d9e"
+    },
+    {
+      "ref": "crypto-asset:f83e9c94258f83209942c703100a3c59"
+    }
+  ],
+  "metadata": {
+    "properties": [
+      {
+        "name": "hash_patch:scanned_files",
+        "value": "[\"/app/cloud_service.py\",\"/app/service.py\",\"/usr/bin/server\"]"
+      }
+    ],
+    "timestamp": "2026-09-05T19:51:54.624944+00:00",
+    "tools": {
+      "components": [
+        {
+          "name": "Hash Patch",
+          "type": "application",
+          "version": "0.1.0"
+        }
+      ]
+    }
+  },
+  "serialNumber": "urn:uuid:8c627865-9b18-518b-8113-f10c1c4d53a5",
+  "specVersion": "1.6",
+  "version": 1
+}

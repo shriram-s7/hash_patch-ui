@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
-import type { EvidenceOccurrence, Finding } from "./cbom/types";
+import { displayName, type EvidenceOccurrence, type Finding, type ExposureState } from "./cbom/types";
 import { QuantumStatusBadge } from "./badges/QuantumStatusBadge";
 import { ReachabilityBadge } from "./badges/ReachabilityBadge";
+import { ExposureBadge } from "./badges/ExposureBadge";
 import { compareFindingsPriority, computePriorityScore } from "./priority";
 import { buildRepositoryTree, normalizeLocation, type TreeNode } from "./repositoryTree";
 import { FileCodeView } from "./FileCodeView";
@@ -76,11 +77,100 @@ function SeverityBar({
   );
 }
 
+/** Most severe exposure state among a set of findings (external > mixed >
+ * internal > unknown), driving folder-level exposure summaries. */
+function subtreeExposure(findings: Finding[]): ExposureState | undefined {
+  const rank: Record<ExposureState, number> = { external: 3, mixed: 2, internal: 1, unknown: 0 };
+  let best: ExposureState | undefined = undefined;
+  for (const f of findings) {
+    const state = f.exposureState ?? "unknown";
+    if (best === undefined || rank[state] > rank[best]) best = state;
+  }
+  return best;
+}
+
+/** Count of findings in each exposure state. */
+function exposureCounts(findings: Finding[]): Record<ExposureState, number> {
+  const counts: Record<ExposureState, number> = { external: 0, mixed: 0, internal: 0, unknown: 0 };
+  for (const f of findings) counts[f.exposureState ?? "unknown"] += 1;
+  return counts;
+}
+
+function getRiskBadge(counts: TreeNode["counts"], total: number) {
+  if (total === 0) {
+    return (
+      <span className="inline-flex items-center justify-center min-w-[22px] px-1.5 py-0.5 rounded font-mono text-[10px] text-ink-muted/50 bg-surface-2/60 border border-line/40">
+        0
+      </span>
+    );
+  }
+
+  let colorClass = "bg-status-good/15 text-status-good border-status-good/30";
+  if (counts.shor > 0) {
+    colorClass = "bg-status-critical/15 text-status-critical border-status-critical/30";
+  } else if (counts.classic > 0) {
+    colorClass = "bg-status-neutral-fg/15 text-status-neutral-fg border-status-neutral-fg/30";
+  } else if (counts.grover > 0) {
+    colorClass = "bg-status-warning/15 text-status-warning border-status-warning/30";
+  }
+
+  return (
+    <span
+      className={`inline-flex items-center justify-center min-w-[22px] px-1.5 py-0.5 rounded font-mono text-[10px] font-semibold border ${colorClass}`}
+    >
+      {total}
+    </span>
+  );
+}
+
+function isNodeVisible(
+  node: TreeNode,
+  term: string,
+  onlyFindings: boolean,
+  ancestorMatched: boolean
+): boolean {
+  if (onlyFindings && node.totalFindings === 0) {
+    return false;
+  }
+  if (!term) {
+    return true;
+  }
+  const cleanTerm = term.toLowerCase().trim().replace(/\\/g, "/");
+  const termNoTrailingSlash = cleanTerm.replace(/\/+$/, "");
+  const cleanPath = node.path.toLowerCase().replace(/\\/g, "/");
+  const cleanFullPath = node.fullPath.toLowerCase().replace(/\\/g, "/");
+  const cleanName = node.name.toLowerCase();
+
+  const selfMatches =
+    ancestorMatched ||
+    cleanPath === termNoTrailingSlash ||
+    cleanPath.startsWith(termNoTrailingSlash + "/") ||
+    cleanPath.startsWith(cleanTerm) ||
+    cleanPath.includes(cleanTerm) ||
+    cleanFullPath.includes(cleanTerm) ||
+    cleanName.includes(cleanTerm);
+
+  if (selfMatches) {
+    return true;
+  }
+
+  if (node.isFolder) {
+    return node.children.some((child) =>
+      isNodeVisible(child, term, onlyFindings, false)
+    );
+  }
+
+  return false;
+}
+
 export function RepositoryView({ sourceName, findings, scannedFiles }: RepositoryViewProps) {
   const tree = useMemo(
     () => buildRepositoryTree(findings, sourceName, scannedFiles),
     [findings, sourceName, scannedFiles]
   );
+
+  const [pathFilter, setPathFilter] = useState("");
+  const [showOnlyFindings, setShowOnlyFindings] = useState(false);
 
   // Collapsed by default to depth 1: root (depth 0) expanded, its depth-1 children collapsed
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set([tree.id]));
@@ -149,8 +239,27 @@ export function RepositoryView({ sourceName, findings, scannedFiles }: Repositor
   }, [selectedNode, sourceName]);
 
   // Recursive flat rendering of visible tree nodes
-  function renderTreeNode(node: TreeNode) {
-    const isExpanded = expandedIds.has(node.id);
+  function renderTreeNode(node: TreeNode, ancestorMatched: boolean = false): React.ReactNode {
+    if (!isNodeVisible(node, pathFilter, showOnlyFindings, ancestorMatched)) {
+      return null;
+    }
+
+    const cleanTerm = pathFilter.toLowerCase().trim().replace(/\\/g, "/");
+    const termNoTrailingSlash = cleanTerm.replace(/\/+$/, "");
+    const cleanPath = node.path.toLowerCase().replace(/\\/g, "/");
+    const cleanFullPath = node.fullPath.toLowerCase().replace(/\\/g, "/");
+    const cleanName = node.name.toLowerCase();
+    const selfMatched =
+      ancestorMatched ||
+      (Boolean(cleanTerm) &&
+        (cleanPath === termNoTrailingSlash ||
+          cleanPath.startsWith(termNoTrailingSlash + "/") ||
+          cleanPath.startsWith(cleanTerm) ||
+          cleanPath.includes(cleanTerm) ||
+          cleanFullPath.includes(cleanTerm) ||
+          cleanName.includes(cleanTerm)));
+
+    const isExpanded = pathFilter.trim() !== "" || expandedIds.has(node.id);
     const isSelected = selectedNode.id === node.id;
     const isDimmed = node.totalFindings === 0;
 
@@ -202,6 +311,13 @@ export function RepositoryView({ sourceName, findings, scannedFiles }: Repositor
                 d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
               />
             </svg>
+          ) : node.findings.some((f) => f.findingType === "COMPILED_CRYPTO_ARTEFACT") ? (
+            <span
+              className="shrink-0 font-mono text-[9px] font-bold text-indigo-400 bg-indigo-950 px-1 py-0.5 rounded-xs border border-indigo-700/50"
+              title="Compiled Binary"
+            >
+              01
+            </span>
           ) : (
             <svg
               className="h-3.5 w-3.5 shrink-0 text-ink-muted"
@@ -224,31 +340,15 @@ export function RepositoryView({ sourceName, findings, scannedFiles }: Repositor
           {/* Spacer */}
           <span className="flex-1" />
 
-          {/* Severity bar & finding count */}
+          {/* Severity bar & finding count badge */}
           <div className="flex shrink-0 items-center gap-2">
             <SeverityBar counts={node.counts} total={node.totalFindings} />
-            <span
-              className={`w-16 text-right font-mono text-xs tabular-nums ${
-                isDimmed ? "text-ink-muted/50" : "text-ink font-semibold"
-              }`}
-            >
-              {node.counts.references > 0 && node.counts.operations > 0 ? (
-                <span>
-                  {node.counts.operations} <span className="text-[10px] text-ink-muted font-normal">op</span> / {node.counts.references} <span className="text-[10px] text-ink-muted font-normal">ref</span>
-                </span>
-              ) : node.counts.references > 0 ? (
-                <span>
-                  {node.counts.references} <span className="text-[10px] text-ink-muted font-normal">ref</span>
-                </span>
-              ) : (
-                node.totalFindings
-              )}
-            </span>
+            {getRiskBadge(node.counts, node.totalFindings)}
           </div>
         </div>
 
         {/* Recursive render children if expanded */}
-        {node.isFolder && isExpanded && node.children.map((child) => renderTreeNode(child))}
+        {node.isFolder && isExpanded && node.children.map((child) => renderTreeNode(child, selfMatched))}
       </div>
     );
   }
@@ -278,9 +378,69 @@ export function RepositoryView({ sourceName, findings, scannedFiles }: Repositor
 
       {/* SPLIT CONTENT: Tree View on Left, Code Viewer / Folder Summary on Right */}
       <div className="flex min-h-0 flex-1 divide-x divide-line overflow-hidden">
-        {/* LEFT PANE: Hierarchical Drill-Down Tree */}
-        <div className="w-1/2 min-w-[320px] max-w-[520px] overflow-y-auto bg-surface/40 py-2">
-          {renderTreeNode(tree)}
+        {/* LEFT PANE: Hierarchical Drill-Down Tree with Controls */}
+        <div className="flex w-1/2 min-w-[320px] max-w-[520px] flex-col overflow-hidden bg-surface/40">
+          {/* Controls: Search input & All vs Findings-only toggle */}
+          <div className="shrink-0 border-b border-line bg-surface/70 p-2.5 space-y-2">
+            <div className="relative">
+              <svg
+                className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-ink-muted"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <input
+                type="text"
+                value={pathFilter}
+                onChange={(e) => setPathFilter(e.target.value)}
+                placeholder="Filter path (e.g. internal/generated/)..."
+                className="w-full rounded-sm border border-line bg-page pl-8 pr-7 py-1 font-mono text-xs text-ink placeholder:text-ink-muted/50 focus:border-ink focus:outline-none transition-colors"
+              />
+              {pathFilter && (
+                <button
+                  type="button"
+                  onClick={() => setPathFilter("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 flex h-4 w-4 items-center justify-center text-ink-muted hover:text-ink text-xs"
+                  aria-label="Clear filter"
+                >
+                  ×
+                </button>
+              )}
+            </div>
+
+            <div className="flex rounded-sm border border-line p-0.5 text-xs bg-page font-heading">
+              <button
+                type="button"
+                onClick={() => setShowOnlyFindings(false)}
+                className={`flex-1 rounded-sm py-1 px-2 text-center text-[11px] font-medium transition-colors ${
+                  !showOnlyFindings
+                    ? "bg-surface text-ink shadow-xs font-semibold"
+                    : "text-ink-muted hover:text-ink"
+                }`}
+              >
+                Show all scanned files
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowOnlyFindings(true)}
+                className={`flex-1 rounded-sm py-1 px-2 text-center text-[11px] font-medium transition-colors ${
+                  showOnlyFindings
+                    ? "bg-surface text-ink shadow-xs font-semibold"
+                    : "text-ink-muted hover:text-ink"
+                }`}
+              >
+                Only files with findings
+              </button>
+            </div>
+          </div>
+
+          {/* Tree list */}
+          <div className="flex-1 overflow-y-auto py-2">
+            {renderTreeNode(tree)}
+          </div>
         </div>
 
         {/* RIGHT PANE: FileCodeView for files, or Folder Summary for folders */}
@@ -338,6 +498,22 @@ export function RepositoryView({ sourceName, findings, scannedFiles }: Repositor
                     <span className="text-status-good font-semibold">
                       {selectedNode.counts.safe} Safe
                     </span>
+                    {selectedNode.counts.cloudKms > 0 && (
+                      <>
+                        <span>•</span>
+                        <span className="text-status-opaque font-semibold">
+                          {selectedNode.counts.cloudKms} Cloud KMS
+                        </span>
+                      </>
+                    )}
+                    {selectedNode.counts.binaryCrypto > 0 && (
+                      <>
+                        <span>•</span>
+                        <span className="text-indigo-400 font-semibold">
+                          {selectedNode.counts.binaryCrypto} Binary Crypto
+                        </span>
+                      </>
+                    )}
                     {selectedNode.priorityScore > 0 && (
                       <>
                         <span>•</span>
@@ -346,6 +522,25 @@ export function RepositoryView({ sourceName, findings, scannedFiles }: Repositor
                         </span>
                       </>
                     )}
+
+                    {/* Phase 4: Deployment exposure summary for the subtree */}
+                    {(() => {
+                      const ec = exposureCounts(selectedNode.allFindings);
+                      const best = subtreeExposure(selectedNode.allFindings);
+                      return (
+                        <>
+                          <span>•</span>
+                          <span className="flex items-center gap-1.5">
+                            <ExposureBadge exposure={best} />
+                            <span className="text-ink-muted font-normal">
+                              {ec.external + ec.mixed > 0
+                                ? `${ec.external + ec.mixed} exposed · ${ec.internal} internal · ${ec.unknown} unknown`
+                                : `${ec.external} ext · ${ec.internal} int · ${ec.unknown} unk`}
+                            </span>
+                          </span>
+                        </>
+                      );
+                    })()}
                   </div>
                 )}
               </div>
@@ -371,6 +566,10 @@ export function RepositoryView({ sourceName, findings, scannedFiles }: Repositor
 
                   <div className="space-y-2">
                     {visibleFindingsWithEvidence.map(({ finding, evidence }) => {
+                      const isReference = finding.findingType === "CRYPTO_REFERENCE";
+                      const isCertificate =
+                        finding.findingType === "CERTIFICATE" || finding.findingType === "CERTIFICATE_UNPARSEABLE";
+                      const isCloudKey = finding.findingType === "CLOUD_KEY_OPERATION";
                       const priority = computePriorityScore(finding);
                       const isInert = finding.reachability === "inert";
 
@@ -383,21 +582,54 @@ export function RepositoryView({ sourceName, findings, scannedFiles }: Repositor
                         >
                           <div className="flex flex-wrap items-center justify-between gap-2">
                             <div className="flex items-center gap-2">
-                              <span className="text-sm font-semibold text-ink">{finding.name}</span>
-                              {finding.findingType === "CRYPTO_REFERENCE" && (
+                              <span className="text-sm font-semibold text-ink">{displayName(finding)}</span>
+                              {isReference && (
                                 <span className="font-mono text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded-sm bg-surface-2 text-ink-muted border border-line">
                                   Reference
                                 </span>
                               )}
+                              {isCertificate && (
+                                <span className="font-mono text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded-sm bg-surface-2 text-ink-muted border border-line">
+                                  Certificate
+                                </span>
+                              )}
+                              {isCloudKey && (
+                                <>
+                                  <span className="font-mono text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded-sm bg-status-opaque text-white border border-line">
+                                    Cloud KMS
+                                  </span>
+                                  {finding.cloudKey?.operation && (
+                                    <span className="font-mono text-[10px] uppercase px-1.5 py-0.5 rounded-sm bg-surface-2 text-ink-muted border border-line">
+                                      {finding.cloudKey.operation}
+                                    </span>
+                                  )}
+                                </>
+                              )}
                             </div>
 
-                            <div className="flex items-center gap-2">
-                              <span className="font-mono text-xs px-1.5 py-0.5 rounded-sm bg-surface-2 text-ink-secondary border border-line">
-                                Score: {priority}
-                              </span>
-                              <QuantumStatusBadge status={finding.quantumStatus} />
-                              <ReachabilityBadge reachability={finding.reachability} status={finding.quantumStatus} />
-                            </div>
+                            {/* A CRYPTO_REFERENCE has no real-world
+                                exploitability — it never carries a priority
+                                score, quantum-status badge, or reachability
+                                badge on the same scale as a genuine
+                                operation. The "Reference" tag above is its
+                                only status indicator. A CERTIFICATE finding
+                                keeps its real priority score and quantum
+                                badge (an RSA-2048 cert is genuinely
+                                broken-by-shor) but never a reachability
+                                badge — a certificate file is never "called"
+                                from code. */}
+                            {!isReference && (
+                              <div className="flex items-center gap-2">
+                                <span className="font-mono text-xs px-1.5 py-0.5 rounded-sm bg-surface-2 text-ink-secondary border border-line">
+                                  Score: {priority}
+                                </span>
+                                <QuantumStatusBadge status={finding.quantumStatus} />
+                                {!isCertificate && (
+                                  <ReachabilityBadge reachability={finding.reachability} status={finding.quantumStatus} />
+                                )}
+                                <ExposureBadge exposure={finding.exposureState} />
+                              </div>
+                            )}
                           </div>
 
                           {evidence.map((occ, evIdx) => {

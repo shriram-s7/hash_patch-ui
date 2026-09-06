@@ -5,7 +5,7 @@
   "metadata": {
     "properties": [
       {
-        "name": "pratyaksha:contradiction.contradiction-48d6f036872ff923",
+        "name": "hash_patch:contradiction.contradiction-48d6f036872ff923",
         "value": "{\"deployedConfig\":{\"format\":\"nginx\",\"legacyReasons\":[\"TLSv1.0 (TLS 1.0 (deprecated RFC 8996, lacks AEAD))\",\"TLSv1.1 (TLS 1.1 (deprecated RFC 8996, lacks AEAD))\"],\"line\":4,\"locator\":\"testdata\\\\contradictions\\\\scenario1_conflict\\\\nginx.conf\",\"value\":\"TLSv1 TLSv1.1 TLSv1.2 TLSv1.3\"},\"description\":\"Source code at testdata\\\\contradictions\\\\scenario1_conflict\\\\app.py:6 configures TLSv1.3 minimum, but deployed configuration at testdata\\\\contradictions\\\\scenario1_conflict\\\\nginx.conf:4 (nginx) permits TLSv1.0 (TLS 1.0 (deprecated RFC 8996, lacks AEAD)), TLSv1.1 (TLS 1.1 (deprecated RFC 8996, lacks AEAD)) \\u2014 the deployed configuration does not enforce the code's stated policy.\",\"id\":\"contradiction-48d6f036872ff923\",\"severity\":\"medium\",\"sourceIntent\":{\"format\":\"source-code-intent\",\"line\":6,\"locator\":\"testdata\\\\contradictions\\\\scenario1_conflict\\\\app.py\",\"value\":\"TLSv1.3\"}}"
       }
     ],
@@ -13,7 +13,7 @@
     "tools": {
       "components": [
         {
-          "name": "PRATYAKSHA",
+          "name": "Hash Patch",
           "type": "application",
           "version": "0.1.0"
         }

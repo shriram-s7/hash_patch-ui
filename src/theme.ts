@@ -1,4 +1,4 @@
-const STORAGE_KEY = "pratyaksha-ui-theme";
+const STORAGE_KEY = "hash-patch-ui-theme";
 
 export type Theme = "light" | "dark";
 

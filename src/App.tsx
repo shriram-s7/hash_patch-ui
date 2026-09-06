@@ -11,8 +11,10 @@ import { GraphMode } from "./GraphMode";
 import { MigrationView } from "./MigrationView";
 import { ReportView } from "./ReportView";
 import { ShelfLifeModal } from "./ShelfLifeModal";
+import { AskView } from "./AskView";
+import { SERVICE_BASE_URL } from "./serviceUrl";
 
-type NavItem = "Repository" | "Findings" | "Relationships" | "Migration" | "Report";
+type NavItem = "Repository" | "Findings" | "Relationships" | "Migration" | "Report" | "Ask";
 
 /** The ShelfLifeEntry backing a finding's longestShelfLifeYears value (same
  * pattern FindingsTable.tsx / FileCodeView.tsx use — the CBOM only stores
@@ -30,10 +32,44 @@ export function App() {
   const [activeNav, setActiveNav] = useState<NavItem>("Repository");
 
   const [plan, setPlan] = useState<ParsedPlan | undefined>(undefined);
+  const [isDemoPlan, setIsDemoPlan] = useState<boolean>(false);
+  const [isOptimizing, setIsOptimizing] = useState<boolean>(false);
+  const [budgetDays, setBudgetDays] = useState<number>(5.0);
   const [planError, setPlanError] = useState<string | undefined>(undefined);
   const [shelfLifeModal, setShelfLifeModal] = useState<{ assetName: string; entry: ShelfLifeEntry } | undefined>(
     undefined,
   );
+
+  async function optimizeScan(cbomObj: unknown, budget: number = 5.0) {
+    if (!cbomObj) return;
+    setIsOptimizing(true);
+    setPlanError(undefined);
+    try {
+      const res = await fetch(`${SERVICE_BASE_URL}/api/optimize`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          cbom: cbomObj,
+          budget_days: budget,
+          parallelism: 1,
+        }),
+      });
+      if (!res.ok) {
+        const errData = (await res.json().catch(() => ({}))) as { detail?: string };
+        throw new Error(errData.detail || `Optimization failed with status ${res.status}`);
+      }
+      const reportData = await res.json();
+      setPlan(parsePlanDocument(reportData));
+      setIsDemoPlan(false);
+      setPlanError(undefined);
+    } catch (err) {
+      console.error("Optimization failed:", err);
+      setPlanError(err instanceof Error ? err.message : "Failed to calculate migration plan.");
+      setPlan(undefined);
+    } finally {
+      setIsOptimizing(false);
+    }
+  }
 
   function handleScanSuccess(rawJson: string, parsed: ParsedCbom, targetPath: string) {
     setCbom(parsed);
@@ -41,6 +77,16 @@ export function App() {
     setSourceName(targetPath);
     setSelectedId(undefined);
     setActiveNav("Repository");
+    setPlan(undefined);
+    setIsDemoPlan(false);
+    setPlanError(undefined);
+
+    try {
+      const parsedObj = JSON.parse(rawJson);
+      void optimizeScan(parsedObj, budgetDays);
+    } catch {
+      // ignore
+    }
   }
 
   function handleFileLoaded(rawJson: string, parsed: ParsedCbom, fileName: string) {
@@ -49,6 +95,16 @@ export function App() {
     setSourceName(fileName);
     setSelectedId(undefined);
     setActiveNav("Repository");
+    setPlan(undefined);
+    setIsDemoPlan(false);
+    setPlanError(undefined);
+
+    try {
+      const parsedObj = JSON.parse(rawJson);
+      void optimizeScan(parsedObj, budgetDays);
+    } catch {
+      // ignore
+    }
   }
 
   function handleNewScan() {
@@ -57,21 +113,48 @@ export function App() {
     setSourceName("");
     setSelectedId(undefined);
     setActiveNav("Repository");
+    setPlan(undefined);
+    setIsDemoPlan(false);
+    setPlanError(undefined);
   }
 
   function loadDemoPlan() {
+    setIsOptimizing(true);
     fetch("/fixtures/demo_plan.json")
       .then((res) => res.json())
       .then((raw: unknown) => {
         setPlan(parsePlanDocument(raw));
+        setIsDemoPlan(true);
         setPlanError(undefined);
       })
-      .catch((e: unknown) => setPlanError(e instanceof Error ? e.message : "Failed to load plan."));
+      .catch((e: unknown) => {
+        setPlanError(e instanceof Error ? e.message : "Failed to load demo plan.");
+        setPlan(undefined);
+      })
+      .finally(() => setIsOptimizing(false));
+  }
+
+  function handleRecalculatePlan(newBudget: number) {
+    setBudgetDays(newBudget);
+    if (rawCbomText) {
+      try {
+        const parsedObj = JSON.parse(rawCbomText);
+        void optimizeScan(parsedObj, newBudget);
+      } catch {
+        setPlanError("Cannot recalculate: invalid CBOM text.");
+      }
+    }
   }
 
   const metrics = useMemo(() => {
     const findings = cbom?.findings ?? [];
-    const brokenByShor = findings.filter((f) => f.quantumStatus === "broken-by-shor").length;
+    // Only OPERATION findings (real crypto API calls / library invocations) count
+    // toward TOTAL / BROKEN BY SHOR — a CRYPTO_REFERENCE (a string literal that
+    // merely looks like an algorithm name, never passed to a crypto call) is a
+    // structurally different kind of finding and must not inflate these counts.
+    const operationFindings = findings.filter((f) => f.findingType !== "CRYPTO_REFERENCE");
+    const referenceFindings = findings.filter((f) => f.findingType === "CRYPTO_REFERENCE");
+    const brokenByShor = operationFindings.filter((f) => f.quantumStatus === "broken-by-shor").length;
     const longestShelfLifeFinding = findings.reduce<Finding | undefined>((longest, f) => {
       if (f.longestShelfLifeYears === undefined) return longest;
       if (longest?.longestShelfLifeYears === undefined || f.longestShelfLifeYears > longest.longestShelfLifeYears) {
@@ -80,10 +163,15 @@ export function App() {
       return longest;
     }, undefined);
     return {
-      totalAssets: findings.length,
+      totalAssets: operationFindings.length,
+      referenceAssets: referenceFindings.length,
       brokenByShor,
       contradictions: cbom?.contradictions.length ?? 0,
-      longestShelfLife: longestShelfLifeFinding?.longestShelfLifeYears ?? 0,
+      // undefined (never 0) when no finding has a computed shelf-life at
+      // all — a genuinely unknown shelf-life (no sensitive-data signal
+      // found near any crypto call) must never be displayed as "0y", which
+      // would claim "expires immediately", a different and misleading fact.
+      longestShelfLife: longestShelfLifeFinding?.longestShelfLifeYears,
       longestShelfLifeFinding,
     };
   }, [cbom]);
@@ -148,6 +236,19 @@ export function App() {
             strokeLinecap="round"
             strokeLinejoin="round"
             d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
+          />
+        </svg>
+      ),
+    },
+    {
+      id: "Ask",
+      label: "Ask",
+      icon: (
+        <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
           />
         </svg>
       ),
@@ -229,6 +330,11 @@ export function App() {
               </div>
               <span className="text-line-strong">•</span>
               <div className="flex items-center gap-1.5 text-ink-muted">
+                <span className="text-[10px] uppercase tracking-wider">REFERENCES:</span>
+                <span className="font-semibold text-xs text-ink tabular-nums">{metrics.referenceAssets}</span>
+              </div>
+              <span className="text-line-strong">•</span>
+              <div className="flex items-center gap-1.5 text-ink-muted">
                 <span className="text-[10px] uppercase tracking-wider">BROKEN BY SHOR:</span>
                 <span className="font-semibold text-xs text-status-critical tabular-nums">{metrics.brokenByShor}</span>
               </div>
@@ -256,7 +362,7 @@ export function App() {
                 >
                   <span className="text-[10px] uppercase tracking-wider">LONGEST SHELF-LIFE:</span>
                   <span className="font-semibold text-xs text-ink tabular-nums underline decoration-dotted underline-offset-2">
-                    {metrics.longestShelfLife}y
+                    {metrics.longestShelfLife !== undefined ? `${metrics.longestShelfLife}y` : "—"}
                   </span>
                 </button>
                 <div className="pointer-events-none absolute right-0 top-full z-50 mt-2 hidden w-72 rounded-sm border border-line-strong bg-surface p-3 text-left normal-case text-[11px] leading-relaxed text-ink-secondary shadow-xl group-hover:block">
@@ -340,12 +446,17 @@ export function App() {
                 selectedId={selectedId}
                 onSelectId={setSelectedId}
                 plan={plan}
+                isDemoPlan={isDemoPlan}
+                isOptimizing={isOptimizing}
                 planError={planError}
                 onPlanLoaded={(p) => {
                   setPlan(p);
+                  setIsDemoPlan(false);
                   setPlanError(undefined);
                 }}
                 onLoadDemoPlan={loadDemoPlan}
+                onRecalculatePlan={handleRecalculatePlan}
+                scannedFiles={cbom.scannedFiles}
               />
             )}
 
@@ -355,6 +466,16 @@ export function App() {
                 sourceName={sourceName}
                 findings={cbom.findings}
                 timestamp={cbom.timestamp}
+                plan={plan}
+                isDemoPlan={isDemoPlan}
+                scannedFiles={cbom.scannedFiles}
+              />
+            )}
+
+            {activeNav === "Ask" && (
+              <AskView
+                rawCbomText={rawCbomText}
+                scanId={cbom.serialNumber}
                 plan={plan}
               />
             )}

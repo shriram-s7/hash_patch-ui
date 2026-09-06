@@ -78,10 +78,10 @@ export function CodeAnnotationView({ finding }: { finding: Finding }) {
               key={i}
               type="button"
               onClick={() => setActiveIndex(i)}
-              className={`rounded-sm border px-2 py-1 font-mono text-[11px] ${
+              className={`rounded-sm border px-2 py-1 font-mono text-xs ${
                 i === activeIndex
-                  ? "border-accent bg-accent/15 text-ink"
-                  : "border-line text-ink-secondary hover:border-line-strong hover:text-ink"
+                  ? "border-ink bg-surface-2 font-semibold text-ink"
+                  : "border-line text-ink-secondary hover:border-line-strong hover:text-ink font-normal"
               }`}
             >
               {shortLocator(e.locator)}

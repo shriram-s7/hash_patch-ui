@@ -1,43 +1,161 @@
+import type { Finding } from "./cbom/types";
 import type { PlanScenario } from "./plan/types";
+import { QuantumStatusBadge } from "./badges/QuantumStatusBadge";
+import { ReachabilityBadge } from "./badges/ReachabilityBadge";
+import { TimelineScrubber } from "./TimelineScrubber";
 
 export function OptimizerBar({
   scenario,
   budgetDays,
+  candidateCount,
+  findings,
+  isDemoPlan,
 }: {
   scenario: PlanScenario;
   budgetDays: number | undefined;
+  candidateCount?: number;
+  findings?: Finding[];
+  isDemoPlan?: boolean;
 }) {
   const totalDays =
     budgetDays ?? Math.max(1, ...scenario.schedule.map((item) => item.endDay));
 
   return (
-    <div className="rounded-sm border border-line bg-surface p-4">
-      <div className="mb-1 text-[11px] font-medium uppercase tracking-wider text-ink-muted">
-        Migration schedule — {scenario.name}
-        {scenario.estimatedYear !== undefined ? ` (~${scenario.estimatedYear})` : ""}
+    <div className="rounded-sm border border-line bg-surface p-4 space-y-4">
+      <div>
+        <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+          <div className="font-heading text-[11px] font-medium uppercase tracking-wider text-ink-muted">
+            Migration schedule — {scenario.name}
+            {scenario.estimatedYear !== undefined ? ` (~${scenario.estimatedYear})` : ""}
+          </div>
+          {isDemoPlan && (
+            <span className="rounded bg-amber-500/20 px-2 py-0.5 text-[10px] font-bold text-amber-300 border border-amber-500/40 uppercase tracking-wide">
+              DEMO / SAMPLE DATA
+            </span>
+          )}
+        </div>
+        {scenario.headline !== undefined && (
+          <p className="mb-3 font-sans text-sm font-semibold text-ink leading-relaxed">{scenario.headline}</p>
+        )}
+        <div className="flex h-8 w-full overflow-hidden rounded-sm border border-line bg-page">
+          {scenario.schedule.map((item, i) => {
+            const widthPct = totalDays > 0 ? ((item.endDay - item.startDay) / totalDays) * 100 : 0;
+            return (
+              <div
+                key={i}
+                title={`${item.name}: day ${item.startDay}–${item.endDay}${
+                  item.riskScore !== undefined ? ` (risk score ${item.riskScore})` : ""
+                }`}
+                style={{ width: `${widthPct}%` }}
+                className="border-r border-page bg-line-strong hover:bg-ink transition-colors last:border-r-0"
+              />
+            );
+          })}
+        </div>
+        <div className="mt-2 font-heading text-xs text-ink-muted flex flex-wrap items-center gap-3">
+          <div>
+            <span className="font-semibold text-ink tabular-nums">{scenario.schedule.length}</span> asset{scenario.schedule.length === 1 ? "" : "s"} scheduled over{" "}
+            <span className="font-semibold text-ink tabular-nums">{totalDays}</span> day{totalDays === 1 ? "" : "s"}
+          </div>
+          {candidateCount !== undefined && (
+            <div className="text-ink-secondary">
+              (<span className="font-semibold tabular-nums text-ink">{candidateCount}</span> candidate{candidateCount === 1 ? "" : "s"} evaluated)
+            </div>
+          )}
+          {scenario.unmigratedFindingIds.length > 0 && (
+            <div className="text-amber-500/90 dark:text-amber-400">
+              (<span className="font-semibold tabular-nums">{scenario.unmigratedFindingIds.length}</span> deferred due to budget limit)
+            </div>
+          )}
+        </div>
       </div>
-      {scenario.headline !== undefined && (
-        <p className="mb-3 text-sm font-semibold text-ink">{scenario.headline}</p>
+
+      <TimelineScrubber scenario={scenario} findings={findings} />
+
+      {/* Migration Schedule List Table */}
+      {scenario.schedule.length > 0 && (
+        <div className="space-y-2 pt-1 border-t border-line">
+          <div className="font-heading text-[11px] font-medium uppercase tracking-wider text-ink-muted">
+            Scheduled Migration Tasks
+          </div>
+          <div className="overflow-x-auto rounded-sm border border-line bg-page">
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="border-b border-line bg-surface-2/40">
+                  <th className="px-3 py-2 font-heading text-[10px] font-medium uppercase tracking-wider text-ink-muted text-right w-8">
+                    #
+                  </th>
+                  <th className="px-3 py-2 font-heading text-[10px] font-medium uppercase tracking-wider text-ink-muted">
+                    Asset
+                  </th>
+                  <th className="px-3 py-2 font-heading text-[10px] font-medium uppercase tracking-wider text-ink-muted">
+                    Quantum Status
+                  </th>
+                  <th className="px-3 py-2 font-heading text-[10px] font-medium uppercase tracking-wider text-ink-muted">
+                    Reachability
+                  </th>
+                  <th className="px-3 py-2 font-heading text-[10px] font-medium uppercase tracking-wider text-ink-muted text-right">
+                    Day Window
+                  </th>
+                  <th className="px-3 py-2 font-heading text-[10px] font-medium uppercase tracking-wider text-ink-muted text-right">
+                    Effort
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {scenario.schedule.map((item, i) => {
+                  const correlated = findings?.find(
+                    (f) =>
+                      f.id === item.findingId ||
+                      f.name.toLowerCase() === item.name.toLowerCase() ||
+                      item.name.toLowerCase().includes(f.name.toLowerCase())
+                  );
+                  const isInert = correlated?.reachability === "inert";
+
+                  return (
+                    <tr
+                      key={i}
+                      className={`border-b border-line last:border-b-0 ${
+                        isInert ? "opacity-60 hover:opacity-100 transition-opacity" : ""
+                      }`}
+                    >
+                      <td className="px-3 py-2 font-heading text-xs text-ink-muted text-right tabular-nums">
+                        {i + 1}
+                      </td>
+                      <td className="px-3 py-2 font-heading text-xs font-semibold text-ink">
+                        {item.name}
+                      </td>
+                      <td className="px-3 py-2">
+                        {correlated?.quantumStatus ? (
+                          <QuantumStatusBadge status={correlated.quantumStatus} />
+                        ) : (
+                          <span className="font-mono text-xs text-ink-muted">—</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2">
+                        {correlated ? (
+                          <ReachabilityBadge
+                            reachability={correlated.reachability}
+                            status={correlated.quantumStatus}
+                          />
+                        ) : (
+                          <span className="font-mono text-xs text-ink-muted">—</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2 font-mono text-xs text-ink-secondary text-right tabular-nums">
+                        {item.startDay}–{item.endDay}
+                      </td>
+                      <td className="px-3 py-2 font-heading text-xs font-semibold text-ink-secondary text-right tabular-nums">
+                        {item.costDays !== undefined ? `${item.costDays}d` : "—"}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
       )}
-      <div className="flex h-8 w-full overflow-hidden rounded-sm border border-line bg-page">
-        {scenario.schedule.map((item, i) => {
-          const widthPct = totalDays > 0 ? ((item.endDay - item.startDay) / totalDays) * 100 : 0;
-          return (
-            <div
-              key={i}
-              title={`${item.name}: day ${item.startDay}–${item.endDay}${
-                item.riskScore !== undefined ? ` (risk score ${item.riskScore})` : ""
-              }`}
-              style={{ width: `${widthPct}%` }}
-              className="border-r border-page bg-accent last:border-r-0"
-            />
-          );
-        })}
-      </div>
-      <div className="mt-1 font-mono text-xs text-ink-muted">
-        {scenario.schedule.length} asset{scenario.schedule.length === 1 ? "" : "s"} scheduled over{" "}
-        {totalDays} day{totalDays === 1 ? "" : "s"}
-      </div>
     </div>
   );
 }

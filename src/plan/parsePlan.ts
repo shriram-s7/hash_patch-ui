@@ -6,6 +6,7 @@ import type {
   RawPlanScenario,
   RawPlanScheduleItem,
   RawPlanVariant,
+  RiskCurvePoint,
 } from "./types";
 
 function asNumber(value: unknown): number | undefined {
@@ -25,11 +26,23 @@ function parseScheduleItem(item: RawPlanScheduleItem, index: number): PlanSchedu
 
 function parseVariant(variant: RawPlanVariant | undefined): {
   riskEliminatedPct: number | undefined;
+  totalRisk: number | undefined;
   schedule: PlanScheduleItem[];
+  unmigratedFindingIds: string[];
+  riskCurve: RiskCurvePoint[];
 } {
+  const riskCurve: RiskCurvePoint[] = (variant?.residual_risk_curve ?? []).map((p) => ({
+    day: p.day,
+    risk: p.residual_risk,
+  }));
   return {
     riskEliminatedPct: variant ? asNumber(variant.risk_eliminated_pct) : undefined,
+    totalRisk: variant ? asNumber(variant.total_risk) : undefined,
     schedule: (variant?.schedule ?? []).map(parseScheduleItem),
+    unmigratedFindingIds: (variant?.unmigrated_finding_ids ?? []).filter(
+      (id): id is string => typeof id === "string"
+    ),
+    riskCurve,
   };
 }
 
@@ -43,7 +56,12 @@ function parseScenario(raw: RawPlanScenario, index: number): PlanScenario {
     headline: raw.headline_message,
     optimizerRiskEliminatedPct: optimizer.riskEliminatedPct,
     naiveRiskEliminatedPct: naive.riskEliminatedPct,
+    optimizerTotalRisk: optimizer.totalRisk,
+    naiveTotalRisk: naive.totalRisk,
     schedule: optimizer.schedule,
+    unmigratedFindingIds: optimizer.unmigratedFindingIds,
+    optimizerRiskCurve: optimizer.riskCurve,
+    naiveRiskCurve: naive.riskCurve,
   };
 }
 
@@ -61,6 +79,8 @@ export function parsePlanDocument(raw: unknown): ParsedPlan {
   }
   return {
     budgetDays: asNumber(doc.budget_days),
+    candidateCount: asNumber(doc.candidate_count),
+    excludedCount: asNumber(doc.excluded_count),
     scenarios: (doc.scenarios ?? []).map(parseScenario),
   };
 }

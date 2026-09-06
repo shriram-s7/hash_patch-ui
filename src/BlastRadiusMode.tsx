@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react";
 import type { BlastRadiusEntry, Finding } from "./cbom/types";
 import { useAnimatedWidth } from "./useAnimatedWidth";
+import { ShockwaveView } from "./ShockwaveView";
+import { BlastRadiusEmptyState } from "./charts/OverflowBar";
 
 const SEVERITY_DOT_CLASS: Record<string, string> = {
   high: "bg-status-critical",
@@ -64,19 +66,19 @@ function EntryView({ entry, maxBytes }: { entry: BlastRadiusEntry; maxBytes: num
       </div>
 
       {/* Declared (current classical allocation) bar */}
-      <div className="mb-1 flex items-center gap-2 text-[11px] uppercase tracking-wide text-ink-muted">
-        <span>Declared buffer</span>
-        <span className="font-mono normal-case tracking-normal text-ink">{formatBytes(declared)} bytes</span>
+      <div className="mb-1.5 flex items-center justify-between text-[11px] uppercase tracking-wider text-ink-muted">
+        <span className="font-heading font-medium">Declared buffer allocation</span>
+        <span className="font-heading font-semibold text-ink tabular-nums normal-case">{formatBytes(declared)} bytes</span>
       </div>
       <div className="mb-4 h-6 rounded-sm bg-page">
         <div className="h-full rounded-sm bg-ink-muted/50" style={{ width: `${declaredWidthPx}px` }} />
       </div>
 
       {/* PQC replacement bar — grows on "Simulate migration" */}
-      <div className="mb-1 flex items-center gap-2 text-[11px] uppercase tracking-wide text-ink-muted">
-        <span>{entry.pqcReplacement ?? "PQC replacement"} size</span>
+      <div className="mb-1.5 flex items-center justify-between text-[11px] uppercase tracking-wider text-ink-muted">
+        <span className="font-heading font-medium">{entry.pqcReplacement ?? "PQC replacement"} required size</span>
         {simulating && (
-          <span className="font-mono normal-case tracking-normal text-ink">{formatBytes(pqc)} bytes</span>
+          <span className="font-heading font-semibold text-ink tabular-nums normal-case">{formatBytes(pqc)} bytes</span>
         )}
       </div>
       <div className="relative mb-2 h-6 rounded-sm bg-page">
@@ -88,7 +90,7 @@ function EntryView({ entry, maxBytes }: { entry: BlastRadiusEntry; maxBytes: num
         />
         <div className="flex h-full">
           <div
-            className={`h-full rounded-l-sm ${overflows ? "bg-accent" : "bg-status-good"} ${
+            className={`h-full rounded-l-sm ${overflows ? "bg-line-strong" : "bg-status-good"} ${
               overflowPart === 0 && normalPart > 0 ? "rounded-r-sm" : ""
             }`}
             style={{ width: `${normalPart}px` }}
@@ -103,7 +105,7 @@ function EntryView({ entry, maxBytes }: { entry: BlastRadiusEntry; maxBytes: num
       </div>
 
       {simulating && settled && (
-        <p className="text-sm font-medium">
+        <p className="font-heading text-base font-semibold">
           {overflows ? (
             <span className="text-status-critical">
               +{formatBytes(overflowBytesExact)} bytes over declared size
@@ -118,7 +120,7 @@ function EntryView({ entry, maxBytes }: { entry: BlastRadiusEntry; maxBytes: num
         type="button"
         onClick={() => setSimulating(true)}
         disabled={simulating}
-        className="mt-4 rounded-sm border border-line px-2.5 py-1.5 text-xs font-medium uppercase tracking-wide text-ink-secondary hover:border-line-strong hover:text-ink disabled:cursor-default disabled:opacity-40"
+        className="mt-4 rounded-sm border border-line px-3 py-1.5 font-heading text-xs font-semibold uppercase tracking-wider text-ink hover:border-line-strong hover:bg-surface-2 disabled:cursor-default disabled:opacity-40 transition-colors"
       >
         Simulate migration
       </button>
@@ -130,11 +132,14 @@ export function BlastRadiusMode({
   findings,
   selectedId,
   onSelect,
+  scannedFiles,
 }: {
   findings: Finding[];
   selectedId: string | undefined;
   onSelect: (id: string) => void;
+  scannedFiles?: string[];
 }) {
+  const [shockwaveId, setShockwaveId] = useState<string | undefined>(undefined);
   const qualifying = useMemo(() => findings.filter((f) => f.blastRadius.length > 0), [findings]);
 
   const maxBytes = useMemo(() => {
@@ -150,34 +155,38 @@ export function BlastRadiusMode({
   const selected = qualifying.find((f) => f.id === selectedId) ?? qualifying[0];
 
   if (qualifying.length === 0) {
-    return (
-      <div className="rounded-sm border border-line bg-surface p-6 text-sm text-ink-muted">
-        No findings in the currently loaded CBOM carry blast-radius data.
-      </div>
-    );
+    return <BlastRadiusEmptyState scannedFiles={scannedFiles} findings={findings} />;
   }
 
   return (
     <div className="flex h-full gap-4">
       <div className="w-[280px] shrink-0 overflow-y-auto rounded-sm border border-line bg-surface">
         {qualifying.map((f, i) => (
-          <button
+          <div
             key={f.id}
-            type="button"
-            onClick={() => onSelect(f.id)}
             style={{ animationDelay: `${Math.min(i * 20, 200)}ms` }}
-            className={`animate-row-in flex w-full items-center gap-2 border-b border-line px-3 py-2 text-left last:border-b-0 ${
-              f.id === selected?.id ? "bg-accent/10" : "hover:bg-surface-2"
+            className={`animate-row-in flex w-full items-center gap-2 border-b border-line px-3 py-2 last:border-b-0 ${
+              f.id === selected?.id ? "bg-surface-2 font-semibold" : "hover:bg-surface-2/60 font-normal"
             }`}
           >
-            <span
-              className={`h-2 w-2 shrink-0 rounded-full ${
-                SEVERITY_DOT_CLASS[f.blastRadius[0]?.severity ?? ""] ?? "bg-status-neutral-fg"
-              }`}
-              aria-hidden="true"
-            />
-            <span className="truncate text-sm text-ink">{f.name}</span>
-          </button>
+            <button type="button" onClick={() => onSelect(f.id)} className="flex min-w-0 flex-1 items-center gap-2 text-left">
+              <span
+                className={`h-2 w-2 shrink-0 rounded-full ${
+                  SEVERITY_DOT_CLASS[f.blastRadius[0]?.severity ?? ""] ?? "bg-status-neutral-fg"
+                }`}
+                aria-hidden="true"
+              />
+              <span className="truncate text-sm text-ink">{f.name}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setShockwaveId(f.id)}
+              title={`View blast-radius shockwave for ${f.name}`}
+              className="shrink-0 rounded-sm border border-line px-1.5 py-0.5 font-heading text-[9px] font-semibold uppercase tracking-wider text-ink-secondary transition-colors hover:border-line-strong hover:text-ink"
+            >
+              Shockwave
+            </button>
+          </div>
         ))}
       </div>
 
@@ -186,6 +195,10 @@ export function BlastRadiusMode({
           <EntryView key={`${selected.id}-${i}`} entry={entry} maxBytes={maxBytes} />
         ))}
       </div>
+
+      {shockwaveId !== undefined && (
+        <ShockwaveView findings={findings} centerId={shockwaveId} onClose={() => setShockwaveId(undefined)} />
+      )}
     </div>
   );
 }

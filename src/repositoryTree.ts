@@ -20,6 +20,9 @@ export interface TreeNode {
     safe: number;
     operations: number;
     references: number;
+    cloudKms: number;
+    binaryCrypto: number;
+    containerCrypto: number;
   };
 }
 
@@ -52,6 +55,18 @@ const KNOWN_EVAL_TARGET_DIRS = [
 
 export function normalizeLocation(rawLoc: string, targetRoot: string): string {
   let loc = rawLoc.replace(/\\/g, "/");
+
+  // Handle container URI: container://image@layer/path
+  if (loc.startsWith("container://")) {
+    const withoutScheme = loc.slice("container://".length);
+    const slashIdx = withoutScheme.indexOf("/");
+    if (slashIdx !== -1) {
+      const imgWithLayer = withoutScheme.slice(0, slashIdx);
+      const img = imgWithLayer.split("@")[0];
+      const innerPath = withoutScheme.slice(slashIdx + 1);
+      return `[container: ${img}]/${innerPath}`;
+    }
+  }
 
   // Remove drive letters like D:/
   const driveMatch = /^[A-Za-z]:\//.exec(loc);
@@ -263,13 +278,24 @@ export function buildRepositoryTree(
 
     const priorityScore = computeAggregatePriority(allFindings);
 
+    // The Shor/Classic/Grover/Safe severity breakdown is about real crypto
+    // operations — a CRYPTO_REFERENCE (a string literal that merely looks
+    // like an algorithm name, never passed to a crypto call) must not
+    // inflate it, same rule as the app-level header metrics. Cloud KMS/HSM
+    // client calls ARE operations (real call sites), just not on the
+    // quantum-verdict scale — they get their own count so they're never
+    // mistaken for red/amber/green-quantum-risk findings.
+    const operationFindings = allFindings.filter((f) => f.findingType !== "CRYPTO_REFERENCE");
     const counts = {
-      shor: allFindings.filter((f) => f.quantumStatus === "broken-by-shor").length,
-      classic: allFindings.filter((f) => f.quantumStatus === "broken-classically").length,
-      grover: allFindings.filter((f) => f.quantumStatus === "weakened-by-grover").length,
-      safe: allFindings.filter((f) => f.quantumStatus === "quantum-safe").length,
-      operations: allFindings.filter((f) => f.findingType !== "CRYPTO_REFERENCE").length,
-      references: allFindings.filter((f) => f.findingType === "CRYPTO_REFERENCE").length,
+      shor: operationFindings.filter((f) => f.quantumStatus === "broken-by-shor").length,
+      classic: operationFindings.filter((f) => f.quantumStatus === "broken-classically").length,
+      grover: operationFindings.filter((f) => f.quantumStatus === "weakened-by-grover").length,
+      safe: operationFindings.filter((f) => f.quantumStatus === "quantum-safe").length,
+      operations: operationFindings.length,
+      references: allFindings.length - operationFindings.length,
+      cloudKms: operationFindings.filter((f) => f.findingType === "CLOUD_KEY_OPERATION").length,
+      binaryCrypto: allFindings.filter((f) => f.findingType === "COMPILED_CRYPTO_ARTEFACT").length,
+      containerCrypto: allFindings.filter((f) => f.container !== undefined).length,
     };
 
     return {

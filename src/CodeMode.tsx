@@ -40,7 +40,7 @@ export function CodeMode({
               type="button"
               onClick={() => onSelect(f.id)}
               className={`flex w-full items-center gap-2 border-b border-line px-3 py-2 text-left last:border-b-0 ${
-                f.id === selected?.id ? "bg-accent/10" : "hover:bg-surface-2"
+                f.id === selected?.id ? "bg-surface-2 font-semibold" : "hover:bg-surface-2/60 font-normal"
               }`}
             >
               <span
