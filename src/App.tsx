@@ -261,7 +261,8 @@ export function App() {
       <aside className="flex flex-col border-r border-line bg-surface w-14 xl:w-52 shrink-0 transition-all">
         {/* Rail Header / Brand */}
         <div className="flex h-11 items-center border-b border-line px-3.5 xl:px-4">
-          <div className="flex items-center gap-2 overflow-hidden">
+          <div className="flex items-center gap-2.5 overflow-hidden">
+            <img src="./favicon.ico" alt="Hash Patch Logo" className="h-4 w-4 shrink-0 rounded-xs object-contain" />
             <span className="font-heading text-sm font-bold tracking-[0.14em] text-ink">hash patch</span>
             <span className="hidden xl:inline rounded-sm border border-line px-1.5 py-0.5 font-heading text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
               UI
@@ -387,98 +388,111 @@ export function App() {
             </div>
 
             <span className="hidden sm:inline-block h-3.5 w-px bg-line" />
+            <a
+              href="https://github.com/shriram-s7/hash_patch/releases/download/v0.1.0/HashPatch-Setup.exe"
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Download standalone HashPatch-Setup.exe (Windows)"
+              className="hidden md:inline-flex items-center gap-1 rounded-sm border border-line bg-surface-2 px-2 py-1 font-heading text-[11px] font-medium uppercase tracking-wider text-ink-secondary hover:border-line-strong hover:text-ink transition-colors"
+            >
+              <span>⬇</span>
+              <span>Demo App (.exe)</span>
+            </a>
             <ThemeToggle />
           </div>
         </header>
 
         {/* MAIN VIEWPORT */}
         <main className="min-h-0 flex-1 overflow-hidden bg-page">
-          <div key={activeNav} className="animate-mode-in h-full">
-            {activeNav === "Repository" && (
-              <RepositoryView
-                sourceName={sourceName}
-                findings={cbom.findings}
-                scannedFiles={cbom.scannedFiles}
-              />
-            )}
-
-            {activeNav === "Findings" && (
-              <div className="h-full overflow-y-auto p-4 sm:p-6 space-y-4">
-                <div className="border-b border-line pb-3">
-                  <h2 className="font-heading text-[26px] font-medium text-ink tracking-tight">
-                    Cryptographic Findings
-                  </h2>
-                  <p className="mt-1 font-sans text-sm text-ink-muted leading-relaxed">
-                    Complete inventory of detected cryptographic assets, ordered by combined algorithmic vulnerability and runtime reachability.
-                  </p>
-                </div>
-                <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-                  <div className={selectedFinding ? "lg:col-span-2" : "lg:col-span-3"}>
-                    <FindingsTable
-                      findings={cbom.findings}
-                      selectedId={selectedId}
-                      onSelect={(f) => setSelectedId(f.id)}
-                    />
-                  </div>
-                  {selectedFinding && (
-                    <div className="lg:col-span-1">
-                      <DetailPanel finding={selectedFinding} onClose={() => setSelectedId(undefined)} />
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {activeNav === "Relationships" && (
-              <div className="h-full overflow-hidden p-4 sm:p-6">
-                <GraphMode
+          {activeNav !== "Ask" && (
+            <div key={activeNav} className="animate-mode-in h-full">
+              {activeNav === "Repository" && (
+                <RepositoryView
+                  sourceName={sourceName}
                   findings={cbom.findings}
-                  metrics={metrics}
-                  selectedId={selectedId}
-                  onSelect={setSelectedId}
+                  scannedFiles={cbom.scannedFiles}
                 />
-              </div>
-            )}
+              )}
 
-            {activeNav === "Migration" && (
-              <MigrationView
-                findings={cbom.findings}
-                selectedId={selectedId}
-                onSelectId={setSelectedId}
-                plan={plan}
-                isDemoPlan={isDemoPlan}
-                isOptimizing={isOptimizing}
-                planError={planError}
-                onPlanLoaded={(p) => {
-                  setPlan(p);
-                  setIsDemoPlan(false);
-                  setPlanError(undefined);
-                }}
-                onLoadDemoPlan={loadDemoPlan}
-                onRecalculatePlan={handleRecalculatePlan}
-                scannedFiles={cbom.scannedFiles}
-              />
-            )}
+              {activeNav === "Findings" && (
+                <div className="h-full overflow-y-auto p-4 sm:p-6 space-y-4">
+                  <div className="border-b border-line pb-3">
+                    <h2 className="font-heading text-[26px] font-medium text-ink tracking-tight">
+                      Cryptographic Findings
+                    </h2>
+                    <p className="mt-1 font-sans text-sm text-ink-muted leading-relaxed">
+                      Complete inventory of detected cryptographic assets, ordered by combined algorithmic vulnerability and runtime reachability.
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+                    <div className={selectedFinding ? "lg:col-span-2" : "lg:col-span-3"}>
+                      <FindingsTable
+                        findings={cbom.findings}
+                        selectedId={selectedId}
+                        onSelect={(f) => setSelectedId(f.id)}
+                      />
+                    </div>
+                    {selectedFinding && (
+                      <div className="lg:col-span-1">
+                        <DetailPanel finding={selectedFinding} onClose={() => setSelectedId(undefined)} />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
 
-            {activeNav === "Report" && (
-              <ReportView
-                rawText={rawCbomText}
-                sourceName={sourceName}
-                findings={cbom.findings}
-                timestamp={cbom.timestamp}
-                plan={plan}
-                isDemoPlan={isDemoPlan}
-                scannedFiles={cbom.scannedFiles}
-              />
-            )}
+              {activeNav === "Relationships" && (
+                <div className="h-full overflow-hidden p-4 sm:p-6">
+                  <GraphMode
+                    findings={cbom.findings}
+                    metrics={metrics}
+                    selectedId={selectedId}
+                    onSelect={setSelectedId}
+                  />
+                </div>
+              )}
 
-            {activeNav === "Ask" && (
-              <AskView
-                rawCbomText={rawCbomText}
-                scanId={cbom.serialNumber}
-                plan={plan}
-              />
-            )}
+              {activeNav === "Migration" && (
+                <MigrationView
+                  findings={cbom.findings}
+                  selectedId={selectedId}
+                  onSelectId={setSelectedId}
+                  plan={plan}
+                  isDemoPlan={isDemoPlan}
+                  isOptimizing={isOptimizing}
+                  planError={planError}
+                  onPlanLoaded={(p) => {
+                    setPlan(p);
+                    setIsDemoPlan(false);
+                    setPlanError(undefined);
+                  }}
+                  onLoadDemoPlan={loadDemoPlan}
+                  onRecalculatePlan={handleRecalculatePlan}
+                  scannedFiles={cbom.scannedFiles}
+                />
+              )}
+
+              {activeNav === "Report" && (
+                <ReportView
+                  rawText={rawCbomText}
+                  sourceName={sourceName}
+                  findings={cbom.findings}
+                  timestamp={cbom.timestamp}
+                  plan={plan}
+                  isDemoPlan={isDemoPlan}
+                  scannedFiles={cbom.scannedFiles}
+                />
+              )}
+            </div>
+          )}
+
+          {/* AskView is preserved across tab navigation so in-flight queries and chat history remain intact */}
+          <div className={activeNav === "Ask" ? "h-full" : "hidden"}>
+            <AskView
+              rawCbomText={rawCbomText}
+              scanId={cbom.serialNumber}
+              plan={plan}
+            />
           </div>
         </main>
       </div>

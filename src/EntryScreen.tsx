@@ -9,7 +9,6 @@ interface EntryScreenProps {
 }
 
 const QUICK_TARGETS = [
-  { label: "eval-target", path: "D:\\CBOM-SIH\\eval-target" },
   { label: "testdata/python", path: "testdata/python" },
   { label: "testdata/c", path: "testdata/c" },
   { label: "testdata/java", path: "testdata/java" },
@@ -19,7 +18,7 @@ const QUICK_TARGETS = [
 ];
 
 export function EntryScreen({ onScanSuccess, onFileLoaded }: EntryScreenProps) {
-  const [sourcePath, setSourcePath] = useState("D:\\CBOM-SIH\\eval-target");
+  const [sourcePath, setSourcePath] = useState("");
   const [serviceStatus, setServiceStatus] = useState<"checking" | "online" | "offline">("checking");
   const [isScanning, setIsScanning] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | undefined>(undefined);
@@ -81,7 +80,7 @@ export function EntryScreen({ onScanSuccess, onFileLoaded }: EntryScreenProps) {
       if (err instanceof TypeError && err.message.includes("Failed to fetch")) {
         setServiceStatus("offline");
         setErrorMessage(
-          "Cannot connect to local engine at http://localhost:8000. Start it in a terminal using: hash-patch serve",
+          "Cannot connect to the local analysis engine. If this persists, close and reopen Hash Patch.",
         );
       } else if (err instanceof Error) {
         setErrorMessage(err.message);
@@ -117,7 +116,8 @@ export function EntryScreen({ onScanSuccess, onFileLoaded }: EntryScreenProps) {
       <div className="w-full max-w-[560px] space-y-6">
         {/* Product Identity */}
         <div className="space-y-2">
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-3">
+            <img src="./favicon.ico" alt="Hash Patch Logo" className="h-8 w-8 shrink-0 rounded-sm object-contain" />
             <h1 className="font-heading text-3xl sm:text-[34px] font-bold tracking-tight text-ink">
               hash patch
             </h1>
@@ -147,7 +147,7 @@ export function EntryScreen({ onScanSuccess, onFileLoaded }: EntryScreenProps) {
                     void handleAnalyze();
                   }
                 }}
-                placeholder="D:\CBOM-SIH\eval-target"
+                placeholder={"C:\\path\\to\\your\\repository"}
                 disabled={isScanning}
                 className="h-10 w-full rounded-sm border border-line bg-surface px-3 font-mono text-sm text-ink placeholder:text-ink-muted/40 focus:border-ink focus:outline-none"
               />
@@ -189,7 +189,7 @@ export function EntryScreen({ onScanSuccess, onFileLoaded }: EntryScreenProps) {
                   <span>Local analysis engine offline on port <span className="font-mono">8000</span></span>
                 </div>
                 <div className="text-ink-muted leading-relaxed">
-                  Start the local service in a terminal using: <code className="font-mono text-ink">hash-patch serve</code>
+                  If this persists, close and reopen Hash Patch to restart the local analysis engine.
                 </div>
               </div>
             )}
@@ -247,7 +247,74 @@ export function EntryScreen({ onScanSuccess, onFileLoaded }: EntryScreenProps) {
             </button>
           </div>
         </div>
+
+        {/* Standalone Desktop Demo Download & Compatibility */}
+        <div className="rounded-sm border border-line bg-surface p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <img src="./favicon.ico" alt="App Icon" className="h-4 w-4 rounded-sm object-contain" />
+              <span className="font-heading text-xs font-semibold uppercase tracking-wider text-ink">
+                Desktop Demo App (Windows)
+              </span>
+            </div>
+            <span className="rounded-sm bg-surface-2 px-1.5 py-0.5 font-mono text-[10px] text-ink-muted">
+              v0.1.0 • ~122 MB
+            </span>
+          </div>
+
+          <p className="font-sans text-xs text-ink-secondary leading-relaxed">
+            Download the pre-packaged offline Windows desktop application to evaluate local scanning, AST cryptographic call-graph reachability, and CycloneDX 1.6 CBOM export on your own repository.
+          </p>
+
+          <div className="flex flex-wrap items-center gap-2 pt-0.5">
+            <a
+              href="https://github.com/shriram-s7/hash_patch/releases/download/v0.1.0/HashPatch-Setup.exe"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-sm bg-ink px-3 py-1.5 font-heading text-xs font-semibold uppercase tracking-wider text-page transition-opacity hover:opacity-90"
+            >
+              <span>⬇</span>
+              <span>Download HashPatch-Setup.exe</span>
+            </a>
+            <a
+              href="https://github.com/shriram-s7/hash_patch/releases/download/v0.1.0/HashPatch-Portable.exe"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-sm border border-line bg-surface-2 px-3 py-1.5 font-heading text-xs font-medium uppercase tracking-wider text-ink-secondary transition-colors hover:border-line-strong hover:text-ink"
+            >
+              <span>Portable .exe</span>
+            </a>
+          </div>
+
+          {/* System & Hardware Specifications */}
+          <div className="border-t border-line/60 pt-2.5 space-y-1.5">
+            <div className="font-heading text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
+              Hardware Compatibility & Specifications:
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 font-sans text-xs">
+              <div className="rounded-sm border border-line/50 bg-page/50 p-2 space-y-1">
+                <div className="flex items-center gap-1.5 text-status-good font-medium">
+                  <span>⚡</span>
+                  <span className="font-heading uppercase tracking-wide text-[11px]">Core Scans & Reports</span>
+                </div>
+                <p className="text-[11px] text-ink-secondary leading-snug">
+                  Runs on <strong>any PC</strong> (even low-spec 2–4 GB RAM). Full AST multi-language scanning, CBOM 1.6 export, reachability & migration planning.
+                </p>
+              </div>
+              <div className="rounded-sm border border-line/50 bg-page/50 p-2 space-y-1">
+                <div className="flex items-center gap-1.5 text-ink font-medium">
+                  <span>🧠</span>
+                  <span className="font-heading uppercase tracking-wide text-[11px]">Local AI "Ask" Feature</span>
+                </div>
+                <p className="text-[11px] text-ink-secondary leading-snug">
+                  <strong>6 GB (preferably 8 GB+) RAM</strong> recommended for hosting the offline Ollama <code className="font-mono text-[10px]">llama3.2:3b</code> LLM in memory.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
+
   );
 }

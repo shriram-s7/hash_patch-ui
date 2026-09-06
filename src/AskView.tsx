@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { SERVICE_BASE_URL } from "./serviceUrl";
+import { SERVICE_BASE_URL, type OllamaProvisionState } from "./serviceUrl";
 import { MarkdownAnswerRenderer, type AnswerHighlight } from "./MarkdownAnswerRenderer";
 
 interface ChatTurn {
@@ -34,6 +34,59 @@ function generateConversationId(): string {
   return `conv_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 }
 
+interface SavedAskSession {
+  scanKey: string;
+  conversationId: string;
+  turns: ChatTurn[];
+  nextId: number;
+  input: string;
+}
+
+const STORAGE_PREFIX = "hash_patch_ask_session_";
+const memorySessionStore = new Map<string, SavedAskSession>();
+
+function getScanStorageKey(scanId?: string, rawCbomText?: string): string {
+  if (scanId && scanId.trim()) return `scan_${scanId.trim()}`;
+  if (rawCbomText && rawCbomText.trim()) {
+    let hash = 0;
+    const len = Math.min(rawCbomText.length, 1000);
+    for (let i = 0; i < len; i++) {
+      hash = ((hash << 5) - hash) + rawCbomText.charCodeAt(i);
+      hash |= 0;
+    }
+    return `cbom_${hash}_${rawCbomText.length}`;
+  }
+  return "unloaded";
+}
+
+function loadSavedSession(scanKey: string): SavedAskSession | null {
+  if (memorySessionStore.has(scanKey)) {
+    return memorySessionStore.get(scanKey)!;
+  }
+  try {
+    const raw = sessionStorage.getItem(`${STORAGE_PREFIX}${scanKey}`);
+    if (raw) {
+      const parsed = JSON.parse(raw) as SavedAskSession;
+      if (parsed && Array.isArray(parsed.turns) && typeof parsed.conversationId === "string") {
+        memorySessionStore.set(scanKey, parsed);
+        return parsed;
+      }
+    }
+  } catch {
+    // sessionStorage might be restricted or throw in certain environments
+  }
+  return null;
+}
+
+function saveSavedSession(session: SavedAskSession) {
+  memorySessionStore.set(session.scanKey, session);
+  try {
+    sessionStorage.setItem(`${STORAGE_PREFIX}${session.scanKey}`, JSON.stringify(session));
+  } catch {
+    // ignore quota / access errors
+  }
+}
+
 /** A narrow "ask about this scan" panel — not a general chatbot. Every
  * answer comes from POST /api/ask (hash_patch/service.py).
  *
@@ -44,23 +97,111 @@ function generateConversationId(): string {
  * if the backend restarts or if an uploaded CBOM has not yet been registered.
  */
 export function AskView({ rawCbomText, scanId, plan }: AskViewProps) {
-  const [turns, setTurns] = useState<ChatTurn[]>([]);
-  const [input, setInput] = useState("");
-  const [pending, setPending] = useState(false);
-  const nextId = useRef(0);
-  const conversationIdRef = useRef<string>(generateConversationId());
-  const lastScanKeyRef = useRef<string | undefined>(scanId || rawCbomText);
+  const currentScanKey = getScanStorageKey(scanId, rawCbomText);
+  const initialSession = loadSavedSession(currentScanKey);
 
-  // When a new scan loads (scanId or rawCbomText changes), reset conversation
-  // state so conversational context is strictly isolated to the active scan.
+  const [turns, setTurns] = useState<ChatTurn[]>(() => initialSession?.turns ?? []);
+  const [input, setInput] = useState<string>(() => initialSession?.input ?? "");
+  const [pending, setPending] = useState(false);
+  const [aiStatus, setAiStatus] = useState<"checking" | "ready" | "missing-model" | "unavailable">("checking");
+  const [aiSetup, setAiSetup] = useState<OllamaProvisionState | null>(null);
+  const [hasQueriedLlm, setHasQueriedLlm] = useState(false);
+  const nextId = useRef<number>(
+    initialSession?.nextId ??
+      (initialSession?.turns && initialSession.turns.length > 0
+        ? Math.max(...initialSession.turns.map((t) => t.id)) + 1
+        : 0)
+  );
+  const conversationIdRef = useRef<string>(initialSession?.conversationId ?? generateConversationId());
+  const lastScanKeyRef = useRef<string>(currentScanKey);
+
+  // Sync state to memory and sessionStorage whenever turns, input, or nextId updates
   useEffect(() => {
-    const currentKey = scanId || rawCbomText;
-    if (currentKey !== lastScanKeyRef.current) {
-      lastScanKeyRef.current = currentKey;
-      conversationIdRef.current = generateConversationId();
-      setTurns([]);
+    saveSavedSession({
+      scanKey: currentScanKey,
+      conversationId: conversationIdRef.current,
+      turns,
+      nextId: nextId.current,
+      input,
+    });
+  }, [currentScanKey, turns, input]);
+
+  // Bundled local AI runtime provisioning (desktop only). The Electron main
+  // process pushes stage/progress as it starts the bundled Ollama and, on
+  // first launch, downloads llama3.2:3b into the per-user cache. Poll the
+  // backend's /api/ollama-status independently (below) for the authoritative
+  // ask-availability state; this channel only adds the in-flight progress UI.
+  useEffect(() => {
+    let active = true;
+    window.hashPatchApi?.getOllamaState?.().then((s) => {
+      if (active) setAiSetup(s);
+    });
+    const off = window.hashPatchApi?.onOllamaProgress?.((s) => {
+      if (active) setAiSetup(s);
+    });
+    return () => {
+      active = false;
+      off?.();
+    };
+  }, []);
+
+  // Ollama availability, surfaced as a non-blocking status line. The Ask API
+  // itself degrades gracefully whenever the local model is unreachable, so
+  // this is purely informational — it must never prevent the panel from working.
+  useEffect(() => {
+    let cancelled = false;
+    const check = async () => {
+      try {
+        const res = await fetch(`${SERVICE_BASE_URL}/api/ollama-status`);
+        if (!res.ok) throw new Error(`status ${res.status}`);
+        const data = (await res.json()) as {
+          available?: boolean;
+          model_available?: boolean;
+          model?: string;
+        };
+        if (cancelled) return;
+        if (data.available && data.model_available) setAiStatus("ready");
+        else if (data.available) setAiStatus("missing-model");
+        else setAiStatus("unavailable");
+      } catch {
+        if (!cancelled) setAiStatus("unavailable");
+      }
+    };
+    void check();
+    const interval = setInterval(() => void check(), 15000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, []);
+
+  // When a new scan loads (scanId or rawCbomText changes), load that scan's
+  // saved session if one exists or initialize a clean one, isolating context.
+  useEffect(() => {
+    if (currentScanKey !== lastScanKeyRef.current) {
+      lastScanKeyRef.current = currentScanKey;
+      const loaded = loadSavedSession(currentScanKey);
+      if (loaded) {
+        setTurns(loaded.turns);
+        setInput(loaded.input);
+        conversationIdRef.current = loaded.conversationId;
+        nextId.current = loaded.nextId;
+      } else {
+        const newConvId = generateConversationId();
+        conversationIdRef.current = newConvId;
+        nextId.current = 0;
+        setTurns([]);
+        setInput("");
+        saveSavedSession({
+          scanKey: currentScanKey,
+          conversationId: newConvId,
+          turns: [],
+          nextId: 0,
+          input: "",
+        });
+      }
     }
-  }, [scanId, rawCbomText]);
+  }, [currentScanKey]);
 
   const canAsk = (scanId !== undefined || rawCbomText !== undefined) && input.trim().length > 0 && !pending;
 
@@ -140,13 +281,16 @@ export function AskView({ rawCbomText, scanId, plan }: AskViewProps) {
         const detail = await res.json().catch(() => undefined);
         const message =
           res.status === 502
-            ? "Local model unavailable — is Ollama running?"
+            ? "Local AI runtime unavailable — answers fall back to verified scan evidence."
             : (detail?.detail as string | undefined) ?? `Request failed (HTTP ${res.status}).`;
         setTurns((prev) => prev.map((t) => (t.id === id ? { ...t, error: message } : t)));
         return;
       }
 
       const data = (await res.json()) as AskResponse;
+      if (data.answer && !data.answer.startsWith("[Local Ollama model unavailable")) {
+        setHasQueriedLlm(true);
+      }
       setTurns((prev) =>
         prev.map((t) =>
           t.id === id
@@ -164,7 +308,7 @@ export function AskView({ rawCbomText, scanId, plan }: AskViewProps) {
     } catch {
       setTurns((prev) =>
         prev.map((t) =>
-          t.id === id ? { ...t, error: "Local model unavailable — is Ollama running?" } : t
+          t.id === id ? { ...t, error: "Local AI runtime unavailable — answers fall back to verified scan evidence." } : t
         )
       );
     } finally {
@@ -181,6 +325,81 @@ export function AskView({ rawCbomText, scanId, plan }: AskViewProps) {
           limited to retrieved CBOM context — never its own knowledge of cryptography or
           compliance). A question with no grounded answer gets an honest decline, not a guess.
         </p>
+        <div className="mt-2 flex items-center gap-1.5 font-sans text-xs text-ink-muted">
+          {aiSetup?.stage === "error" ? (
+            <>
+              <span className="h-1.5 w-1.5 rounded-full bg-status-critical" aria-hidden="true" />
+              <span>
+                Local AI setup failed{aiSetup.message ? ` — ${aiSetup.message}.` : "."} Answers fall
+                back to verified scan evidence. All other features are unaffected.
+              </span>
+            </>
+          ) : aiSetup?.stage === "importing" ? (
+            <>
+              <span className="h-1.5 w-1.5 rounded-full bg-status-warning animate-pulse" aria-hidden="true" />
+              <span>
+                Importing local model <span className="font-mono text-ink">llama3.2:3b</span> from offline package…
+                You can keep using Hash Patch meanwhile (questions use verified scan evidence).
+              </span>
+            </>
+          ) : aiSetup?.stage === "warming" ? (
+            <>
+              <span className="h-1.5 w-1.5 rounded-full bg-status-warning animate-pulse" aria-hidden="true" />
+              <span>
+                Initializing local AI model into memory (<span className="font-mono text-ink">llama3.2:3b</span>)…
+                Questions asked now use verified scan evidence.
+              </span>
+            </>
+          ) : aiSetup?.stage === "downloading" ? (
+            <>
+              <span className="h-1.5 w-1.5 rounded-full bg-status-warning" aria-hidden="true" />
+              <span>
+                Setting up local AI model <span className="font-mono text-ink">llama3.2:3b</span> —{" "}
+                {aiSetup.percent != null
+                  ? `${aiSetup.percent}% downloaded (one-time, ~2 GB)`
+                  : "downloading… (one-time, ~2 GB)"}
+                . You can keep using Hash Patch meanwhile (questions use verified scan evidence).
+              </span>
+            </>
+          ) : aiSetup?.stage === "starting" || aiSetup?.stage === "verifying" ? (
+            <>
+              <span className="h-1.5 w-1.5 rounded-full bg-status-warning" aria-hidden="true" />
+              <span>
+                Setting up local AI model <span className="font-mono text-ink">llama3.2:3b</span> —{" "}
+                {aiSetup.stage === "verifying" ? "verifying download…" : "starting local runtime…"}
+                . Questions fall back to verified scan evidence.
+              </span>
+            </>
+          ) : (
+            <>
+              <span
+                className={`h-1.5 w-1.5 rounded-full ${
+                  aiStatus === "ready" || aiSetup?.stage === "ready"
+                    ? "bg-status-good"
+                    : aiStatus === "missing-model" || aiStatus === "unavailable"
+                      ? "bg-status-warning"
+                      : "bg-ink-muted"
+                }`}
+                aria-hidden="true"
+              />
+              {aiSetup?.stage === "ready" || aiStatus === "ready" ? (
+                <span>Local model <span className="font-mono text-ink">llama3.2:3b</span> is available.</span>
+              ) : aiStatus === "checking" ? (
+                <span>Checking for local AI model…</span>
+              ) : aiStatus === "missing-model" ? (
+                <span>
+                  Ollama is running but the <span className="font-mono text-ink">llama3.2:3b</span> model is
+                  not installed — answers fall back to verified scan evidence.
+                </span>
+              ) : (
+                <span>
+                  Local AI runtime not yet ready — answers fall back to verified scan evidence (all other
+                  features are unaffected).
+                </span>
+              )}
+            </>
+          )}
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto space-y-3 pr-1">
@@ -201,7 +420,11 @@ export function AskView({ rawCbomText, scanId, plan }: AskViewProps) {
               <div className="max-w-[85%] space-y-1">
                 {t.answer === undefined && t.error === undefined && (
                   <div className="rounded-sm border border-line bg-surface px-3 py-1.5 font-mono text-xs text-ink-muted">
-                    Thinking… (local model call, usually a few seconds)
+                    {aiSetup?.stage === "ready" || aiStatus === "ready"
+                      ? !hasQueriedLlm
+                        ? "Thinking… (first local model query may take longer while model initializes in memory)"
+                        : "Thinking… (local model call, usually a few seconds)"
+                      : "Thinking… (consulting verified scan evidence)"}
                   </div>
                 )}
                 {t.error !== undefined && (
