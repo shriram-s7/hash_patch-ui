@@ -21,21 +21,21 @@ const LABEL: Record<QuantumStatus, string> = {
 // statement: "the provider manages the algorithm; we cannot see it from
 // here".
 const CLASSES: Record<QuantumStatus, string> = {
-  "broken-by-shor": "bg-status-critical text-white",
-  "weakened-by-grover": "bg-status-warning text-status-warning-fg",
-  "quantum-safe": "bg-status-good text-white",
+  "broken-by-shor": "bg-status-critical-fill text-status-critical-fg",
+  "weakened-by-grover": "bg-status-warning-fill text-status-warning-fg",
+  "quantum-safe": "bg-status-good-fill text-status-good-fg",
   "broken-classically": "bg-status-neutral-bg text-status-neutral-fg",
   unknown: "bg-status-neutral-bg text-status-neutral-fg",
-  "algorithm-opaque-provider-managed": "bg-status-opaque text-white",
+  "algorithm-opaque-provider-managed": "bg-status-opaque-fill text-status-opaque-fg",
 };
 
 const DOT_CLASSES: Record<QuantumStatus, string> = {
-  "broken-by-shor": "bg-white",
+  "broken-by-shor": "bg-status-critical-fg",
   "weakened-by-grover": "bg-status-warning-fg",
-  "quantum-safe": "bg-white",
+  "quantum-safe": "bg-status-good-fg",
   "broken-classically": "bg-status-neutral-fg",
   unknown: "bg-status-neutral-fg",
-  "algorithm-opaque-provider-managed": "bg-white",
+  "algorithm-opaque-provider-managed": "bg-status-opaque-fg",
 };
 
 export function QuantumStatusBadge({ status }: { status: QuantumStatus | undefined }) {
