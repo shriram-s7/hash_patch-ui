@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import ForceGraph, { type ForceGraphMethods, type NodeObject } from "react-force-graph-2d";
-import type { Finding } from "./cbom/types";
+import { displayName, type DataChainType, type Finding, type QuantumStatus } from "./cbom/types";
 import { DetailPanel } from "./DetailPanel";
 import { quantumStatusColor, useThemeColors } from "./useThemeColors";
-import { buildCallGraphEdges } from "./graphEdges";
+import { buildCallGraphEdges, buildDataChainEdges } from "./graphEdges";
 
 const LEGEND: { status: string; label: string; dotClass: string }[] = [
   { status: "broken-by-shor", label: "Broken by Shor", dotClass: "bg-status-critical" },
@@ -19,7 +19,7 @@ const LABEL_ZOOM_THRESHOLD = 2.4;
 interface GraphNode {
   id: string;
   name: string;
-  quantumStatus: string | undefined;
+  quantumStatus: QuantumStatus | undefined;
   radius: number;
   finding: Finding;
   x?: number;
@@ -31,6 +31,8 @@ interface GraphNode {
 interface GraphLink {
   source: string;
   target: string;
+  kind: "call" | "dataChain";
+  chainType?: DataChainType;
 }
 
 // Fixed anchor points nodes are pulled toward when "cluster by status" is on.
@@ -89,13 +91,16 @@ export function ClusterGraph({
   const graphData = useMemo(() => {
     const nodes: GraphNode[] = findings.map((f) => ({
       id: f.id,
-      name: f.name,
+      name: displayName(f),
       quantumStatus: f.quantumStatus,
       radius: radiusFor(f.evidence.length),
       finding: f,
     }));
 
-    const links: GraphLink[] = buildCallGraphEdges(findings);
+    const links: GraphLink[] = [
+      ...buildCallGraphEdges(findings).map((e) => ({ ...e, kind: "call" as const })),
+      ...buildDataChainEdges(findings).map((e) => ({ ...e, kind: "dataChain" as const, chainType: e.chainType })),
+    ];
 
     return { nodes, links };
   }, [findings]);
@@ -143,9 +148,11 @@ export function ClusterGraph({
             Asset Relationships
           </h2>
           <p className="mt-0.5 font-sans text-sm text-ink-muted leading-relaxed">
-            Real call-graph edges between findings whose enclosing functions directly call each other
-            (Hash Patch's reachability call graph). A finding with no direct caller/callee relationship
-            to another finding renders isolated — that is an honest result, not a bug.
+            Solid edges are real call-graph edges between findings whose enclosing functions directly call
+            each other (Hash Patch's reachability call graph). Dashed edges are same-function data chains
+            (Java only) — one finding's output literally feeds another's input within the same method. A
+            finding with neither relationship to another finding renders isolated — that is an honest
+            result, not a bug.
           </p>
         </div>
         <button
@@ -172,8 +179,29 @@ export function ClusterGraph({
             backgroundColor={colors["--page"]}
             nodeId="id"
             nodeLabel={() => ""}
-            linkColor={() => colors["--ink-secondary"]}
-            linkWidth={2.5}
+            linkColor={(link) => {
+              const gl = link as unknown as GraphLink;
+              if (gl.kind === "dataChain") {
+                return gl.chainType === "key_material"
+                  ? (colors["--ink-muted"] ?? "#9ca3af")
+                  : colors["--status-warning"];
+              }
+              return colors["--ink-secondary"];
+            }}
+            linkWidth={(link) => {
+              const gl = link as unknown as GraphLink;
+              if (gl.kind === "dataChain") {
+                return gl.chainType === "key_material" ? 1.5 : 2;
+              }
+              return 2.5;
+            }}
+            linkLineDash={(link) => {
+              const gl = link as unknown as GraphLink;
+              if (gl.kind === "dataChain") {
+                return gl.chainType === "key_material" ? [2, 3] : [4, 3];
+              }
+              return null;
+            }}
             cooldownTime={15000}
             onNodeClick={(node) => onSelect(node.id as string)}
             onNodeHover={(node) => setHoveredId((node?.id as string | undefined) ?? undefined)}
@@ -215,6 +243,28 @@ export function ClusterGraph({
                 <span className="text-[11px] uppercase tracking-wide text-ink-secondary">{item.label}</span>
               </div>
             ))}
+            <div className="mt-1 flex flex-col gap-1 border-t border-line pt-1">
+              <div className="flex items-center gap-1.5">
+                <span className="h-0 w-3 border-t-2 border-ink-secondary" aria-hidden="true" />
+                <span className="text-[11px] uppercase tracking-wide text-ink-secondary">Cross-function call</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span
+                  className="h-0 w-3 border-t-2 border-dashed"
+                  style={{ borderColor: colors["--status-warning"] }}
+                  aria-hidden="true"
+                />
+                <span className="text-[11px] uppercase tracking-wide text-ink-secondary">Ciphertext chain</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span
+                  className="h-0 w-3 border-t-[1.5px] border-dotted"
+                  style={{ borderColor: colors["--ink-muted"] ?? "#9ca3af" }}
+                  aria-hidden="true"
+                />
+                <span className="text-[11px] uppercase tracking-wide text-ink-secondary">Key-material binding</span>
+              </div>
+            </div>
           </div>
         </div>
 

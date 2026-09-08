@@ -132,3 +132,22 @@ export function computeAggregatePriority(findings: Finding[]): number {
   }
   return maxScore;
 }
+
+/**
+ * For a finding (especially one with mixed reachability), returns the individual
+ * evidence site that earned the highest reachability multiplier governing its priority.
+ */
+export function highestPriorityEvidenceSite(finding: Finding) {
+  if (!finding.evidence || finding.evidence.length === 0) return undefined;
+  let bestEv = finding.evidence[0];
+  let bestMult = -1;
+  for (const ev of finding.evidence) {
+    const reach = ev.reachability ?? finding.reachability ?? "unknown";
+    const mult = REACHABILITY_MULTIPLIERS[reach] ?? 0.4;
+    if (mult > bestMult) {
+      bestMult = mult;
+      bestEv = ev;
+    }
+  }
+  return bestEv;
+}

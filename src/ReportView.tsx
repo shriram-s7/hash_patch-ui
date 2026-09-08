@@ -651,7 +651,11 @@ export function ReportView({
                     </td>
                     <td className="px-3 py-2">
                       {!isReference && !isCertificate && (
-                        <ReachabilityBadge reachability={finding.reachability} status={finding.quantumStatus} />
+                        <ReachabilityBadge
+                          reachability={finding.reachability}
+                          status={finding.quantumStatus}
+                          mixed={finding.mixedReachability}
+                        />
                       )}
                     </td>
                     <td className="px-3 py-2 font-heading text-xs font-semibold text-ink tabular-nums text-right">
@@ -754,6 +758,7 @@ export function ReportView({
                             <ReachabilityBadge
                               reachability={correlated.reachability}
                               status={correlated.quantumStatus}
+                              mixed={correlated.mixedReachability}
                             />
                           )}
                         </div>

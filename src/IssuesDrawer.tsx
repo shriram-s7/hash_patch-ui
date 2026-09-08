@@ -117,7 +117,11 @@ export function IssuesDrawer({
                   ) : (
                     <>
                       <QuantumStatusBadge status={finding.quantumStatus} />
-                      <ReachabilityBadge reachability={finding.reachability} status={finding.quantumStatus} />
+                      <ReachabilityBadge
+                        reachability={finding.reachability}
+                        status={finding.quantumStatus}
+                        mixed={finding.mixedReachability}
+                      />
                       {severity !== undefined && (
                         <span
                           className={`rounded-sm px-1.5 py-0.5 font-heading text-[10px] font-semibold uppercase tracking-wide ${

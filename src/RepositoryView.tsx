@@ -625,7 +625,11 @@ export function RepositoryView({ sourceName, findings, scannedFiles }: Repositor
                                 </span>
                                 <QuantumStatusBadge status={finding.quantumStatus} />
                                 {!isCertificate && (
-                                  <ReachabilityBadge reachability={finding.reachability} status={finding.quantumStatus} />
+                                  <ReachabilityBadge
+                                    reachability={finding.reachability}
+                                    status={finding.quantumStatus}
+                                    mixed={finding.mixedReachability}
+                                  />
                                 )}
                                 <ExposureBadge exposure={finding.exposureState} />
                               </div>
@@ -636,9 +640,14 @@ export function RepositoryView({ sourceName, findings, scannedFiles }: Repositor
                             const rel = occ.locator ? normalizeLocation(occ.locator, sourceName) : "unlocated";
                             return (
                               <div key={evIdx} className="space-y-1">
-                                <div className="font-mono text-xs text-ink-secondary">
-                                  <span>{rel}</span>
-                                  {occ.line !== undefined && <span className="text-ink-muted">:{occ.line}</span>}
+                                <div className="flex items-center justify-between font-mono text-xs text-ink-secondary">
+                                  <span>
+                                    {rel}
+                                    {occ.line !== undefined && <span className="text-ink-muted">:{occ.line}</span>}
+                                  </span>
+                                  {occ.reachability && (
+                                    <ReachabilityBadge reachability={occ.reachability} status={finding.quantumStatus} />
+                                  )}
                                 </div>
                                 {occ.snippet && (
                                   <pre className="overflow-x-auto rounded-sm bg-page p-2 font-mono text-xs text-ink-secondary border border-line/60 whitespace-pre">
