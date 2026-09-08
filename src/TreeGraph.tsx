@@ -1,8 +1,8 @@
 import { useMemo, useRef, useState } from "react";
-import type { Finding } from "./cbom/types";
+import { displayName, type Finding } from "./cbom/types";
 import { DetailPanel } from "./DetailPanel";
 import { quantumStatusColor, useThemeColors } from "./useThemeColors";
-import { buildCallGraphEdges } from "./graphEdges";
+import { buildCallGraphEdges, buildDataChainEdges, type GraphEdge } from "./graphEdges";
 
 const NODE_RADIUS = 13;
 const TIER_GAP_Y = 110;
@@ -15,6 +15,13 @@ const ISOLATED_COLS = 6;
 const MARGIN = 80;
 const MIN_ZOOM = 0.3;
 const MAX_ZOOM = 2.5;
+
+const LEGEND: { status: string; label: string; dotClass: string }[] = [
+  { status: "CRITICAL", label: "Critical", dotClass: "bg-status-critical" },
+  { status: "HIGH", label: "High", dotClass: "bg-status-high" },
+  { status: "MEDIUM", label: "Medium", dotClass: "bg-status-medium" },
+  { status: "LOW", label: "Low", dotClass: "bg-status-low" },
+];
 
 interface PositionedNode {
   finding: Finding;
@@ -209,6 +216,12 @@ export function TreeGraph({
   });
 
   const edges = useMemo(() => buildCallGraphEdges(findings), [findings]);
+  // Data-chain edges are rendered ON TOP of the call-graph tree, but do NOT
+  // participate in tree layout (roots/tiers) — the layout stays exactly the
+  // call-graph shape it always was, and data-chain edges just connect
+  // whatever positions the two endpoints land at (tree area or isolated
+  // grid), the same way `edges` connects tree-area nodes.
+  const dataChainEdges: GraphEdge[] = useMemo(() => buildDataChainEdges(findings), [findings]);
   const layout = useMemo(() => buildTreeLayout(findings, edges), [findings, edges]);
   const positionById = useMemo(() => {
     const map = new Map<string, { x: number; y: number }>();
@@ -248,8 +261,10 @@ export function TreeGraph({
         <p className="mt-0.5 font-sans text-sm text-ink-muted leading-relaxed">
           A static hierarchy built from the same call-graph edges as Cluster mode: a root (no caller among
           the other findings, or the entry-point-reachable one in a cyclic group) sits at the top of each
-          tier, its callees fan out beneath it, arrows show which finding depends on which. Nothing here
-          moves on its own — drag the background to pan, scroll to zoom; individual nodes are fixed.
+          tier, its callees fan out beneath it, solid arrows show which finding depends on which. Dashed
+          amber arrows are same-function data chains (Java only) — one finding's output literally feeding
+          another's input within the same method. Nothing here moves on its own — drag the background to
+          pan, scroll to zoom; individual nodes are fixed.
         </p>
       </div>
 
@@ -277,6 +292,28 @@ export function TreeGraph({
                 orient="auto-start-reverse"
               >
                 <path d="M0 0 L10 5 L0 10 z" fill={colors["--ink-secondary"]} />
+              </marker>
+              <marker
+                id="tree-arrow-chain"
+                viewBox="0 0 10 10"
+                refX="9"
+                refY="5"
+                markerWidth="7"
+                markerHeight="7"
+                orient="auto-start-reverse"
+              >
+                <path d="M0 0 L10 5 L0 10 z" fill={colors["--status-warning"]} />
+              </marker>
+              <marker
+                id="tree-arrow-chain-key"
+                viewBox="0 0 10 10"
+                refX="9"
+                refY="5"
+                markerWidth="7"
+                markerHeight="7"
+                orient="auto-start-reverse"
+              >
+                <path d="M0 0 L10 5 L0 10 z" fill={colors["--ink-muted"] ?? "#9ca3af"} />
               </marker>
             </defs>
 
@@ -332,6 +369,35 @@ export function TreeGraph({
                 );
               })}
 
+              {/* Same-function data-chain edges (Java only) — visually distinct
+                  dashed/colored lines overlaid on the same node positions, never
+                  merged with the solid call-graph edges above. Differentiates
+                  ciphertext chaining (dashed amber) from key-material binding (dotted gray). */}
+              {dataChainEdges.map((e) => {
+                const from = positionById.get(e.source);
+                const to = positionById.get(e.target);
+                if (!from || !to) return null;
+                const dx = to.x - from.x;
+                const dy = to.y - from.y;
+                const dist = Math.hypot(dx, dy) || 1;
+                const toX = to.x - (dx / dist) * (NODE_RADIUS + 4);
+                const toY = to.y - (dy / dist) * (NODE_RADIUS + 4);
+                const isKeyMaterial = e.chainType === "key_material";
+                return (
+                  <line
+                    key={`chain:${e.source}->${e.target}`}
+                    x1={from.x}
+                    y1={from.y}
+                    x2={toX}
+                    y2={toY}
+                    stroke={isKeyMaterial ? (colors["--ink-muted"] ?? "#9ca3af") : colors["--status-warning"]}
+                    strokeWidth={isKeyMaterial ? 1.5 : 2}
+                    strokeDasharray={isKeyMaterial ? "2 3" : "4 3"}
+                    markerEnd={isKeyMaterial ? "url(#tree-arrow-chain-key)" : "url(#tree-arrow-chain)"}
+                  />
+                );
+              })}
+
               {/* Nodes */}
               {[...layout.connectedNodes, ...layout.isolatedNodes].map(({ finding, x, y }) => {
                 const isSelected = finding.id === selectedId;
@@ -358,13 +424,44 @@ export function TreeGraph({
                       fontFamily="Inter, sans-serif"
                       fill={colors["--ink"]}
                     >
-                      {finding.name}
+                      {displayName(finding)}
                     </text>
                   </g>
                 );
               })}
             </g>
           </svg>
+
+          <div className="pointer-events-none absolute bottom-3 left-3 flex flex-col gap-1 rounded-sm border border-line bg-surface/90 px-2.5 py-2">
+            {LEGEND.map((item) => (
+              <div key={item.status} className="flex items-center gap-1.5">
+                <span className={`h-2 w-2 rounded-full ${item.dotClass}`} aria-hidden="true" />
+                <span className="text-[11px] uppercase tracking-wide text-ink-secondary">{item.label}</span>
+              </div>
+            ))}
+            <div className="mt-1 flex flex-col gap-1 border-t border-line pt-1">
+              <div className="flex items-center gap-1.5">
+                <span className="h-0 w-3 border-t-2 border-ink-secondary" aria-hidden="true" />
+                <span className="text-[11px] uppercase tracking-wide text-ink-secondary">Cross-function call</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span
+                  className="h-0 w-3 border-t-2 border-dashed"
+                  style={{ borderColor: colors["--status-warning"] }}
+                  aria-hidden="true"
+                />
+                <span className="text-[11px] uppercase tracking-wide text-ink-secondary">Ciphertext chain</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span
+                  className="h-0 w-3 border-t-[1.5px] border-dotted"
+                  style={{ borderColor: colors["--ink-muted"] ?? "#9ca3af" }}
+                  aria-hidden="true"
+                />
+                <span className="text-[11px] uppercase tracking-wide text-ink-secondary">Key-material binding</span>
+              </div>
+            </div>
+          </div>
         </div>
 
         {selectedFinding && (

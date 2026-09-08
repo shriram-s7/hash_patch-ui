@@ -28,7 +28,7 @@ function totalBlastRadiusDays(finding: Finding): number | undefined {
 const MAX_STAGGER_MS = 300;
 const STAGGER_STEP_MS = 12;
 
-type FilterValue = "all" | Reachability;
+type FilterValue = "all" | Reachability | "mixed";
 type ExposureFilterValue = "all" | ExposureState;
 
 interface FilterOption {
@@ -43,8 +43,9 @@ interface ExposureFilterOption {
 
 const FILTER_OPTIONS: FilterOption[] = [
   { value: "all", label: "All" },
-  { value: "live-external", label: "Live (external)" },
-  { value: "live-internal", label: "Live (internal)" },
+  { value: "live-external", label: "Live (entry-reachable)" },
+  { value: "live-internal", label: "Live (internal-call)" },
+  { value: "mixed", label: "Mixed" },
   { value: "unknown", label: "Unknown" },
   { value: "inert", label: "Inert (dead code)" },
 ];
@@ -90,8 +91,8 @@ export function FindingsTable({
       if (next.size === 0) {
         return new Set(["all"]);
       }
-      // If all 4 individual filters selected, reset to all
-      if (next.size === 4) {
+      // If all 5 individual filters selected, reset to all
+      if (next.size === 5) {
         return new Set(["all"]);
       }
       return next;
@@ -152,11 +153,19 @@ export function FindingsTable({
       all: findings.length,
       "live-external": 0,
       "live-internal": 0,
+      mixed: 0,
       unknown: 0,
       inert: 0,
     };
     for (const f of findings) {
       if (hasNoReachability(f)) continue;
+      // A Mixed-reachability finding counts ONLY toward "mixed" — counting it
+      // into its resolved live-external/live-internal/etc bucket too would
+      // double-count it and make the chip totals exceed the finding count.
+      if (f.mixedReachability) {
+        counts.mixed = (counts.mixed ?? 0) + 1;
+        continue;
+      }
       const reach = f.reachability ?? "unknown";
       counts[reach] = (counts[reach] ?? 0) + 1;
     }
@@ -192,11 +201,19 @@ export function FindingsTable({
       if (f.findingType === "CRYPTO_REFERENCE" || f.findingType === "CERTIFICATE" || f.findingType === "CERTIFICATE_UNPARSEABLE") return false;
       const reach = f.reachability ?? "unknown";
       const exposure = f.exposureState ?? "unknown";
-      const reachMatch = selectedFilters.has("all") || selectedFilters.has(reach as FilterValue);
+      // Mixed-reachability findings belong exclusively to the "mixed" filter
+      // — a single-state filter (live-external, live-internal, unknown,
+      // inert) must never also match a Mixed finding just because its
+      // resolved top-level reachability happens to equal that state.
+      const reachMatch =
+        selectedFilters.has("all") ||
+        (f.mixedReachability
+          ? selectedFilters.has("mixed")
+          : selectedFilters.has(reach as FilterValue));
       const exposureMatch = selectedExposureFilters.has("all") || selectedExposureFilters.has(exposure as ExposureFilterValue);
       return reachMatch && exposureMatch;
     });
-  }, [findings, selectedFilters]);
+  }, [findings, selectedFilters, selectedExposureFilters]);
 
   return (
     <div className="space-y-3">
@@ -364,7 +381,11 @@ export function FindingsTable({
                   </td>
                   <td className="px-3 py-2">
                     {!isReference && !isCertificate && (
-                      <ReachabilityBadge reachability={f.reachability} status={f.quantumStatus} />
+                      <ReachabilityBadge
+                        reachability={f.reachability}
+                        status={f.quantumStatus}
+                        mixed={f.mixedReachability}
+                      />
                     )}
                   </td>
                   <td className="px-3 py-2">

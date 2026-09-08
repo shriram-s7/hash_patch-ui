@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from "react";
-import type { BlastRadiusEntry, Finding, QuantumStatus } from "./cbom/types";
+import { displayName, type BlastRadiusEntry, type DataChainType, type Finding, type QuantumStatus } from "./cbom/types";
 
 const RING_GAP_PX = 100;
 const CENTER_RADIUS_PX = 16;
@@ -40,19 +40,19 @@ function locatorLabel(finding: Finding): string {
   return ev.line !== undefined ? `${ev.locator}:${ev.line}` : ev.locator;
 }
 
+export type EdgeKind = "call" | "ciphertext" | "key_material";
+
 interface RingEntry {
   finding: Finding;
   /** id of the ring-closer-to-center node this one has a direct (one-hop)
-   * call-graph edge to — always a real edge from Finding.callRelation,
-   * never inferred transitively. */
+   * edge to (call relation caller, ciphertext chain consumer, or key-material binder). */
   viaId: string;
+  edgeKind: EdgeKind;
 }
 
-/** BFS outward from `center` via `callRelation.callers` only — a caller of
- * the center directly depends on the center's behavior, so "dependents"
- * radiate along that edge, one ring per hop. Reuses the SAME edge data the
- * Relationships graph (Prompt M/N1) already exposes; no second notion of
- * "affected" is computed here. */
+/** BFS outward from `center` via `callRelation.callers` and `dataChain.chainTargets` —
+ * dependents radiate along edges, one ring per hop. Distinguishes cross-function callers,
+ * ciphertext chaining consumers, and key-material binding consumers. */
 function buildRings(findings: Finding[], centerId: string): RingEntry[][] {
   const byId = new Map(findings.map((f) => [f.id, f]));
   const center = byId.get(centerId);
@@ -65,12 +65,43 @@ function buildRings(findings: Finding[], centerId: string): RingEntry[][] {
   while (frontier.length > 0 && rings.length < MAX_RINGS) {
     const next: RingEntry[] = [];
     for (const f of frontier) {
+      // 1. Cross-function callers
       for (const callerId of f.callRelation?.callers ?? []) {
         if (visited.has(callerId)) continue;
         const callerFinding = byId.get(callerId);
         if (callerFinding === undefined) continue;
         visited.add(callerId);
-        next.push({ finding: callerFinding, viaId: f.id });
+        next.push({ finding: callerFinding, viaId: f.id, edgeKind: "call" });
+      }
+
+      // 2. Same-function data chain dependents (targets that consume f's output or key)
+      for (const targetId of f.dataChain?.chainTargets ?? []) {
+        if (visited.has(targetId)) continue;
+        const targetFinding = byId.get(targetId);
+        if (targetFinding === undefined) continue;
+        visited.add(targetId);
+
+        let chainType: DataChainType | undefined = f.dataChain?.edges?.find(
+          (e) => e.source === f.id && e.target === targetId
+        )?.chainType;
+        if (!chainType) {
+          chainType = targetFinding.dataChain?.edges?.find(
+            (e) => e.source === f.id && e.target === targetId
+          )?.chainType;
+        }
+        if (!chainType) {
+          chainType = f.dataChain?.chainType;
+        }
+        if (!chainType) {
+          const isKeyGen =
+            f.detectorId?.toLowerCase().includes("keygen") ||
+            f.name.toLowerCase().includes("keygen") ||
+            f.name.toLowerCase().includes("keygenerator");
+          chainType = isKeyGen ? "key_material" : "ciphertext";
+        }
+
+        const edgeKind: EdgeKind = chainType === "key_material" ? "key_material" : "ciphertext";
+        next.push({ finding: targetFinding, viaId: f.id, edgeKind });
       }
     }
     if (next.length === 0) break;
@@ -149,11 +180,11 @@ export function ShockwaveView({
             <div className="font-heading text-[10px] font-medium uppercase tracking-wider text-ink-muted">
               Blast-radius shockwave
             </div>
-            <h2 className="mt-0.5 font-heading text-lg font-medium text-ink tracking-tight">{center.name}</h2>
+            <h2 className="mt-0.5 font-heading text-lg font-medium text-ink tracking-tight">{displayName(center)}</h2>
             <p className="mt-1 max-w-2xl font-sans text-xs leading-relaxed text-ink-muted">
-              The changed algorithm sits at the center. Each ring is one more call-graph hop out — findings
-              whose enclosing function directly or transitively calls into this one, reusing the same
-              caller/callee edges as the Asset Relationships graph.
+              The changed algorithm sits at the center. Each ring is one more hop out — findings
+              whose enclosing function calls into this one, or that consume this cipher&rsquo;s output or key material,
+              reusing the same relationship data as the Asset Relationships graph.
             </p>
           </div>
           <button
@@ -168,7 +199,7 @@ export function ShockwaveView({
 
         <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-5 lg:flex-row">
           {/* Radial diagram */}
-          <div className="flex shrink-0 items-center justify-center rounded-sm border border-line bg-page lg:w-[440px]">
+          <div className="relative flex shrink-0 items-center justify-center rounded-sm border border-line bg-page lg:w-[440px]">
             <svg
               viewBox={`${-maxRadius} ${-maxRadius} ${2 * maxRadius} ${2 * maxRadius}`}
               className="h-[380px] w-full lg:h-[440px]"
@@ -190,6 +221,8 @@ export function ShockwaveView({
               {/* Edges: node -> its via-node position */}
               {positioned.map((n) => {
                 const from = posById.get(n.viaId) ?? { x: 0, y: 0 };
+                const isCiphertext = n.edgeKind === "ciphertext";
+                const isKeyMaterial = n.edgeKind === "key_material";
                 return (
                   <line
                     key={`edge-${n.finding.id}`}
@@ -197,8 +230,21 @@ export function ShockwaveView({
                     y1={from.y}
                     x2={n.x}
                     y2={n.y}
-                    stroke="var(--ink-muted)"
-                    strokeWidth={1.5}
+                    stroke={
+                      isCiphertext
+                        ? "var(--status-warning)"
+                        : isKeyMaterial
+                        ? "var(--ink-muted)"
+                        : "var(--ink-secondary)"
+                    }
+                    strokeWidth={isKeyMaterial ? 1.5 : 2}
+                    strokeDasharray={
+                      isCiphertext
+                        ? "4 3"
+                        : isKeyMaterial
+                        ? "2 3"
+                        : undefined
+                    }
                   />
                 );
               })}
@@ -213,6 +259,29 @@ export function ShockwaveView({
                 </g>
               ))}
             </svg>
+
+            <div className="pointer-events-none absolute bottom-2 left-2 flex flex-col gap-1 rounded-sm border border-line bg-surface/90 px-2 py-1.5 text-[10px]">
+              <div className="flex items-center gap-1.5">
+                <span className="h-0 w-3 border-t-2 border-ink-secondary" aria-hidden="true" />
+                <span className="uppercase tracking-wide text-ink-secondary">Call dependent</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span
+                  className="h-0 w-3 border-t-2 border-dashed"
+                  style={{ borderColor: "var(--status-warning)" }}
+                  aria-hidden="true"
+                />
+                <span className="uppercase tracking-wide text-ink-secondary">Ciphertext chain</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span
+                  className="h-0 w-3 border-t-[1.5px] border-dotted"
+                  style={{ borderColor: "var(--ink-muted)" }}
+                  aria-hidden="true"
+                />
+                <span className="uppercase tracking-wide text-ink-secondary">Key-material binding</span>
+              </div>
+            </div>
           </div>
 
           {/* Center's real blast-radius data + ring-by-ring list */}
@@ -231,16 +300,11 @@ export function ShockwaveView({
             {rings.length === 0 ? (
               <div className="rounded-sm border border-dashed border-line-strong bg-page p-4">
                 <p className="font-heading text-xs font-semibold uppercase tracking-wider text-ink">
-                  No call-graph dependents found
+                  No call-graph or data-chain dependents found
                 </p>
                 <p className="mt-1.5 text-xs leading-relaxed text-ink-secondary">
-                  This finding has no direct or transitive callers among the other findings in this scan, so
-                  the shockwave is just this one node — an honest result, not a bug. Blast-radius findings
-                  come exclusively from C fixed-size buffers and SQL DDL columns (see docs/BLAST_RADIUS.md),
-                  while the call-graph relationship data reused here (Prompt M/N1) is only computed for
-                  Python and Java evidence (see docs/REACHABILITY.md) — a C-detected buffer overflow like
-                  this one structurally can never have a resolved caller/callee edge to another finding.
-                  Nothing was padded or invented to make this ring look busier than the real data supports.
+                  This finding has no direct or transitive callers or data-flow consumers among the other findings in this scan, so
+                  the shockwave is just this one node — an honest result, not a bug.
                 </p>
               </div>
             ) : (
@@ -261,14 +325,26 @@ export function ShockwaveView({
                               style={{ backgroundColor: quantumFill(n.finding.quantumStatus) }}
                               aria-hidden="true"
                             />
-                            <span className="font-heading text-xs font-semibold text-ink">{n.finding.name}</span>
+                            <span className="font-heading text-xs font-semibold text-ink">{displayName(n.finding)}</span>
                           </div>
                           <div className="mt-1 break-all font-mono text-[11px] text-ink-secondary">
                             {locatorLabel(n.finding)}
                           </div>
                           <div className="mt-1 text-[11px] leading-relaxed text-ink-muted">
-                            {n.finding.name}&rsquo;s enclosing function directly calls {via?.name ?? "the previous ring's"}&rsquo;s
-                            enclosing function{via !== center ? `, which chains back to ${center.name}` : ""}.
+                            {n.edgeKind === "ciphertext" ? (
+                              <>
+                                {displayName(n.finding)} consumes ciphertext output directly from {via ? displayName(via) : "the epicenter"}{via !== center ? `, which chains back to ${displayName(center)}` : ""}.
+                              </>
+                            ) : n.edgeKind === "key_material" ? (
+                              <>
+                                {displayName(n.finding)} binds key material generated by {via ? displayName(via) : "the epicenter"}{via !== center ? `, which chains back to ${displayName(center)}` : ""}.
+                              </>
+                            ) : (
+                              <>
+                                {displayName(n.finding)}&rsquo;s enclosing function directly calls {via ? displayName(via) : "the previous ring's"}&rsquo;s
+                                enclosing function{via !== center ? `, which chains back to ${displayName(center)}` : ""}.
+                              </>
+                            )}
                           </div>
                         </li>
                       );

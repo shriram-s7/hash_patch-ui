@@ -96,6 +96,7 @@ export interface EvidenceOccurrence {
   column: number | undefined;
   snippet: string | undefined;
   sourceType: string | undefined;
+  reachability?: Reachability;
 }
 
 /** A losing candidate from the longest-shelf-life-wins tie-break
@@ -133,6 +134,31 @@ export interface CallRelation {
   /** Asset ids of other findings whose enclosing function is directly
    * called by this finding's enclosing function (one hop, not transitive). */
   callees: string[];
+}
+
+export type DataChainType = "ciphertext" | "key_material";
+
+export interface DataChainEdge {
+  source: string;
+  target: string;
+  chainType: DataChainType;
+}
+
+/** Same-function data-flow chain edges (hash_patch/analyze/data_chain.py,
+ * Java only) — an explicitly DIFFERENT relationship type from CallRelation:
+ * "this finding's output literally feeds that finding's input within one
+ * method", not "this function calls that function". Kept as its own field
+ * (never merged into CallRelation) so the two stay distinguishable in the
+ * Relationships view. */
+export interface DataChain {
+  /** Asset ids whose output this finding directly consumes (one hop). */
+  chainSources: string[];
+  /** Asset ids that directly consume this finding's output (one hop). */
+  chainTargets: string[];
+  /** Explicit typed edges involving this asset (source or target). */
+  edges?: DataChainEdge[];
+  /** Uniform chain type if all edges for this finding share the same type. */
+  chainType?: DataChainType;
 }
 
 /** Certificate-specific fields (hash_patch/detect/certificates.py) — only
@@ -227,6 +253,7 @@ export interface Finding {
   oid: string | undefined;
   quantumStatus: QuantumStatus | undefined;
   reachability: Reachability | undefined;
+  mixedReachability?: boolean;
   confidence: string | undefined;
   detectorId: string | undefined;
   detectorVersion: string | undefined;
@@ -249,6 +276,10 @@ export interface Finding {
    * `undefined` when this finding has no `hash_patch:property.callRelation` at
    * all (Go/C evidence, or genuinely no direct caller/callee finding). */
   callRelation: CallRelation | undefined;
+  /** Same-function data-flow chain edges (hash_patch/analyze/data_chain.py,
+   * Java only). `undefined` when this finding has no
+   * `hash_patch:property.dataChain` at all. */
+  dataChain: DataChain | undefined;
   /** Phase 4: IaC Deployment Topology Exposure */
   exposureState: ExposureState | undefined;
   correlationStrength: CorrelationStrength | undefined;
@@ -291,4 +322,5 @@ export interface ParsedCbom {
   findings: Finding[];
   contradictions: ContradictionEntry[];
   scannedFiles?: string[];
+  callGraphEdges?: { caller: string; callee: string }[];
 }

@@ -12,6 +12,9 @@ import type {
   BinaryCryptoInfo,
   BlastRadiusEntry,
   CallRelation,
+  DataChain,
+  DataChainEdge,
+  DataChainType,
   CertificateInfo,
   CloudKeyInfo,
   ContainerProvenance,
@@ -133,6 +136,7 @@ function parseOccurrence(occ: RawOccurrence): EvidenceOccurrence {
     column: ctx ? asNumber(ctx.column) : undefined,
     snippet: ctx ? asString(ctx.snippet) : undefined,
     sourceType: ctx ? asString(ctx.source_type) : undefined,
+    reachability: ctx ? asReachability(asString(ctx.reachability)) : undefined,
   };
 }
 
@@ -230,6 +234,39 @@ function parseCallRelation(props: Map<string, string>): CallRelation | undefined
   const v = safeJsonParse(raw);
   if (!v) return undefined;
   return { callers: asStringArray(v.callers), callees: asStringArray(v.callees) };
+}
+
+/** `hash_patch:property.dataChain` -> DataChain (hash_patch/analyze/data_chain.py, Java only). */
+function parseDataChain(props: Map<string, string>): DataChain | undefined {
+  const raw = getProp(props, "property.dataChain");
+  const v = safeJsonParse(raw);
+  if (!v) return undefined;
+  const edges: DataChainEdge[] = [];
+  if (Array.isArray(v.edges)) {
+    for (const e of v.edges) {
+      if (
+        e &&
+        typeof e.source === "string" &&
+        typeof e.target === "string" &&
+        (e.chainType === "ciphertext" || e.chainType === "key_material")
+      ) {
+        edges.push({
+          source: e.source,
+          target: e.target,
+          chainType: e.chainType as DataChainType,
+        });
+      }
+    }
+  }
+  const chainType: DataChainType | undefined =
+    v.chainType === "ciphertext" || v.chainType === "key_material" ? v.chainType : undefined;
+
+  return {
+    chainSources: asStringArray(v.chainSources),
+    chainTargets: asStringArray(v.chainTargets),
+    edges: edges.length > 0 ? edges : undefined,
+    chainType,
+  };
 }
 
 function asBool(value: unknown): boolean | undefined {
@@ -339,6 +376,18 @@ function componentToFinding(component: RawCbomComponent, index: number): Finding
     return longest === undefined || entry.shelfLifeYears > longest ? entry.shelfLifeYears : longest;
   }, undefined);
 
+  const evidence = (component.evidence?.occurrences ?? []).map(parseOccurrence);
+  const mixedProp =
+    getProp(props, "mixedReachability") === "true" ||
+    getProp(props, "property.mixedReachability") === "true";
+  const evReaches = evidence
+    .map((e) => e.reachability)
+    .filter((r): r is Reachability => r !== undefined);
+  const hasLive = evReaches.some((r) => r === "live-external" || r === "live-internal");
+  const hasNonLive = evReaches.some((r) => r === "unknown" || r === "inert");
+  const mixedReachability =
+    mixedProp || (hasLive && hasNonLive) || (evReaches.length > 1 && new Set(evReaches).size > 1);
+
   return {
     id: component["bom-ref"] ?? `finding-${index}`,
     name: component.name ?? "(unnamed)",
@@ -349,10 +398,11 @@ function componentToFinding(component: RawCbomComponent, index: number): Finding
     oid: component.cryptoProperties?.oid,
     quantumStatus: asQuantumStatus(getProp(props, "quantumStatus")),
     reachability: asReachability(getProp(props, "reachability")),
+    mixedReachability,
     confidence: getProp(props, "confidence"),
     detectorId: getProp(props, "detectorId"),
     detectorVersion: getProp(props, "detectorVersion"),
-    evidence: (component.evidence?.occurrences ?? []).map(parseOccurrence),
+    evidence,
     shelfLife,
     longestShelfLifeYears,
     blastRadius: parseBlastRadiusEntries(props),
@@ -379,6 +429,7 @@ function componentToFinding(component: RawCbomComponent, index: number): Finding
     binaryCrypto: parseBinaryCryptoInfo(props),
     container: parseContainerProvenance(props),
     callRelation: parseCallRelation(props),
+    dataChain: parseDataChain(props),
     exposureState: asExposureState(getProp(props, "exposureState")),
     correlationStrength: asCorrelationStrength(getProp(props, "correlationStrength")),
     workload: getProp(props, "workload"),
@@ -418,6 +469,20 @@ function parseContradictions(metadataProperties: RawCbomProperty[] | undefined):
   return out;
 }
 
+function parseCallGraphEdges(
+  properties: RawCbomProperty[] | undefined
+): { caller: string; callee: string }[] | undefined {
+  for (const p of properties ?? []) {
+    if (p.name === "hash_patch:callGraphEdges" || p.name === "hash-patch:callGraphEdges") {
+      try {
+        const parsed = JSON.parse(p.value);
+        if (Array.isArray(parsed)) return parsed as { caller: string; callee: string }[];
+      } catch {}
+    }
+  }
+  return undefined;
+}
+
 function parseScannedFiles(properties: RawCbomProperty[] | undefined): string[] | undefined {
   for (const p of properties ?? []) {
     if (p.name === "hash_patch:scanned_files" || p.name === "hash-patch:scanned_files") {
@@ -451,5 +516,6 @@ export function parseCbomDocument(raw: unknown): ParsedCbom {
     findings: (doc.components ?? []).map(componentToFinding),
     contradictions: parseContradictions(doc.metadata?.properties),
     scannedFiles: parseScannedFiles(doc.metadata?.properties),
+    callGraphEdges: parseCallGraphEdges(doc.metadata?.properties),
   };
 }

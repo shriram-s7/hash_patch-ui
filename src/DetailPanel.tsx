@@ -61,7 +61,11 @@ export function DetailPanel({ finding, onClose }: { finding: Finding; onClose: (
           <div className="mt-2 flex gap-2">
             <QuantumStatusBadge status={finding.quantumStatus} />
             {finding.findingType !== "CERTIFICATE" && finding.findingType !== "CERTIFICATE_UNPARSEABLE" && (
-              <ReachabilityBadge reachability={finding.reachability} status={finding.quantumStatus} />
+              <ReachabilityBadge
+                reachability={finding.reachability}
+                status={finding.quantumStatus}
+                mixed={finding.mixedReachability}
+              />
             )}
             {finding.exposureState !== undefined && <ExposureBadge exposure={finding.exposureState} />}
           </div>
@@ -268,16 +272,34 @@ export function DetailPanel({ finding, onClose }: { finding: Finding; onClose: (
 
       {finding.evidence.length > 0 && (
         <div className="mb-4">
-          <h3 className="mb-2 font-heading text-[11px] font-medium uppercase tracking-wider text-ink-muted">
-            Evidence Call Sites ({finding.evidence.length})
-          </h3>
+          <div className="mb-2 flex items-center justify-between">
+            <h3 className="font-heading text-[11px] font-medium uppercase tracking-wider text-ink-muted">
+              Evidence Call Sites ({finding.evidence.length})
+            </h3>
+            {finding.mixedReachability && (
+              <span className="font-heading text-[10px] uppercase tracking-wider text-amber-600 dark:text-amber-400 font-semibold">
+                Mixed Reachability
+              </span>
+            )}
+          </div>
+          {finding.mixedReachability && (
+            <div className="mb-3 rounded-sm border border-amber-500/30 bg-amber-500/10 p-2.5 font-sans text-xs text-ink leading-relaxed">
+              <span className="font-semibold text-amber-600 dark:text-amber-400">Notice: </span>
+              This algorithm merges multiple call sites with different reachability tiers. Dead or uncalled code sites are isolated below, while the asset-level priority reflects the active entry point(s).
+            </div>
+          )}
           <div className="space-y-2">
             {finding.evidence.map((e, i) => (
               <div key={i} className="rounded-sm border border-line bg-page p-2">
-                <div className="break-all font-mono text-xs text-ink-secondary">
-                  {e.locator ?? "(unknown file)"}
-                  {e.line !== undefined ? `:${e.line}` : ""}
-                  {e.column !== undefined ? `:${e.column}` : ""}
+                <div className="flex items-center justify-between gap-2">
+                  <div className="break-all font-mono text-xs text-ink-secondary">
+                    {e.locator ?? "(unknown file)"}
+                    {e.line !== undefined ? `:${e.line}` : ""}
+                    {e.column !== undefined ? `:${e.column}` : ""}
+                  </div>
+                  {e.reachability && (
+                    <ReachabilityBadge reachability={e.reachability} status={finding.quantumStatus} />
+                  )}
                 </div>
                 {e.snippet !== undefined && (
                   <pre className="mt-1 whitespace-pre-wrap break-words font-mono text-xs text-ink">

@@ -155,6 +155,7 @@ export function MigrationView({
             scenario={defaultScenario}
             budgetDays={plan?.budgetDays}
             candidateCount={plan?.candidateCount}
+            excludedCount={plan?.excludedCount}
             findings={findings}
             isDemoPlan={isDemoPlan}
           />

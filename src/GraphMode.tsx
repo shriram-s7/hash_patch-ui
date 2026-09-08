@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { Finding } from "./cbom/types";
 import { ClusterGraph } from "./ClusterGraph";
 import { TreeGraph } from "./TreeGraph";
+import { relationshipFindings } from "./relationshipFindings";
 
 type LayoutMode = "cluster" | "tree";
 
@@ -13,6 +14,10 @@ type LayoutMode = "cluster" | "tree";
  * independent code paths on purpose — neither shares layout state with the
  * other, so switching between them can never bleed physics or positions from
  * one into the other. Both read the same call-graph edge data (graphEdges.ts).
+ *
+ * Filtering out reference/certificate findings happens once, here, rather
+ * than inside each graph component -- so Cluster mode and Tree mode can never
+ * drift into two different node sets.
  */
 export function GraphMode({
   findings,
@@ -25,6 +30,7 @@ export function GraphMode({
   onSelect: (id: string | undefined) => void;
 }) {
   const [mode, setMode] = useState<LayoutMode>("cluster");
+  const graphFindings = relationshipFindings(findings);
 
   return (
     <div className="flex h-full flex-col gap-3">
@@ -58,9 +64,9 @@ export function GraphMode({
 
       <div className="min-h-0 flex-1">
         {mode === "cluster" ? (
-          <ClusterGraph findings={findings} selectedId={selectedId} onSelect={onSelect} />
+          <ClusterGraph findings={graphFindings} selectedId={selectedId} onSelect={onSelect} />
         ) : (
-          <TreeGraph findings={findings} selectedId={selectedId} onSelect={onSelect} />
+          <TreeGraph findings={graphFindings} selectedId={selectedId} onSelect={onSelect} />
         )}
       </div>
     </div>

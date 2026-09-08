@@ -1,8 +1,8 @@
 import type { QuantumStatus, Reachability } from "../cbom/types";
 
 const LABEL: Record<Reachability, string> = {
-  "live-external": "Live · external",
-  "live-internal": "Live · internal",
+  "live-external": "Live · entry-reachable",
+  "live-internal": "Live · internal-call",
   inert: "Inert",
   unknown: "Unknown",
 };
@@ -10,9 +10,25 @@ const LABEL: Record<Reachability, string> = {
 export interface ReachabilityBadgeProps {
   reachability: Reachability | undefined;
   status?: QuantumStatus;
+  mixed?: boolean;
 }
 
-export function ReachabilityBadge({ reachability, status }: ReachabilityBadgeProps) {
+export function ReachabilityBadge({ reachability, status, mixed }: ReachabilityBadgeProps) {
+  if (mixed) {
+    return (
+      <span
+        className="inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 font-heading text-[10px] uppercase tracking-wider bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/40 font-semibold"
+        title="Asset merges both live and dead/unreachable call sites"
+      >
+        <span className="relative flex h-1.5 w-1.5 shrink-0" aria-hidden="true">
+          <span className="absolute inline-flex h-full w-full rounded-full bg-amber-500 animate-signal-pulse" />
+          <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-amber-500" />
+        </span>
+        Mixed · see evidence
+      </span>
+    );
+  }
+
   if (reachability === undefined) {
     return <span className="font-mono text-xs text-ink-muted">—</span>;
   }
