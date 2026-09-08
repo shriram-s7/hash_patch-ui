@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import type { Finding, ParsedCbom, ShelfLifeEntry } from "./cbom/types";
 import { parsePlanDocument } from "./plan/parsePlan";
 import type { ParsedPlan } from "./plan/types";
-import { ThemeToggle } from "./ThemeToggle";
+import { AppShell, type NavItem } from "./AppShell";
 import { EntryScreen } from "./EntryScreen";
 import { RepositoryView } from "./RepositoryView";
 import { FindingsTable } from "./FindingsTable";
@@ -13,8 +13,6 @@ import { ReportView } from "./ReportView";
 import { ShelfLifeModal } from "./ShelfLifeModal";
 import { AskView } from "./AskView";
 import { SERVICE_BASE_URL } from "./serviceUrl";
-
-type NavItem = "Repository" | "Findings" | "Relationships" | "Migration" | "Report" | "Ask";
 
 /** The ShelfLifeEntry backing a finding's longestShelfLifeYears value (same
  * pattern FindingsTable.tsx / FileCodeView.tsx use — the CBOM only stores
@@ -183,227 +181,26 @@ export function App() {
     return <EntryScreen onScanSuccess={handleScanSuccess} onFileLoaded={handleFileLoaded} />;
   }
 
-  const navItems: { id: NavItem; label: string; icon: React.ReactNode }[] = [
-    {
-      id: "Repository",
-      label: "Repository",
-      icon: (
-        <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
-          />
-        </svg>
-      ),
-    },
-    {
-      id: "Findings",
-      label: "Findings",
-      icon: (
-        <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h10" />
-        </svg>
-      ),
-    },
-    {
-      id: "Relationships",
-      label: "Relationships",
-      icon: (
-        <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <circle cx="6" cy="6" r="2.5" />
-          <circle cx="18" cy="8" r="2.5" />
-          <circle cx="10" cy="18" r="2.5" />
-          <path strokeLinecap="round" d="M8 7.5l7.5 4M16 10l-4.5 6" />
-        </svg>
-      ),
-    },
-    {
-      id: "Migration",
-      label: "Migration",
-      icon: (
-        <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M17 3l4 4-4 4M21 7H3M7 21l-4-4 4-4M3 17h18" />
-        </svg>
-      ),
-    },
-    {
-      id: "Report",
-      label: "Report",
-      icon: (
-        <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
-          />
-        </svg>
-      ),
-    },
-    {
-      id: "Ask",
-      label: "Ask",
-      icon: (
-        <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
-          />
-        </svg>
-      ),
-    },
-  ];
-
   return (
-    <div className="flex h-screen overflow-hidden bg-page text-ink animate-mode-in">
-      {/* LEFT NAVIGATION RAIL (~200px / collapsible to icon-only below 1280px) */}
-      <aside className="flex flex-col border-r border-line bg-surface w-14 xl:w-52 shrink-0 transition-all">
-        {/* Rail Header / Brand */}
-        <div className="flex h-11 items-center border-b border-line px-3.5 xl:px-4">
-          <div className="flex items-center gap-2.5 overflow-hidden">
-            <img src="./favicon.ico" alt="Hash Patch Logo" className="h-4 w-4 shrink-0 rounded-xs object-contain" />
-            <span className="font-heading text-sm font-bold tracking-[0.14em] text-ink">hash patch</span>
-            <span className="hidden xl:inline rounded-sm border border-line px-1.5 py-0.5 font-heading text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
-              UI
-            </span>
-          </div>
-        </div>
-
-        {/* Nav Items List */}
-        <nav className="flex-1 space-y-0.5 py-2">
-          {navItems.map((item) => {
-            const isActive = activeNav === item.id;
-            return (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => setActiveNav(item.id)}
-                title={item.label}
-                className={`flex w-full items-center gap-3 px-3.5 xl:px-4 py-2 font-heading text-xs uppercase tracking-wider transition-colors ${
-                  isActive
-                    ? "border-l-2 border-ink bg-surface-2 font-semibold text-ink"
-                    : "border-l-2 border-transparent font-medium text-ink-secondary hover:bg-surface-2/60 hover:text-ink"
-                }`}
-              >
-                {item.icon}
-                <span className="hidden xl:inline truncate">{item.label}</span>
-              </button>
-            );
-          })}
-        </nav>
-
-        {/* Rail Footer: Target Path & New Scan */}
-        <div className="border-t border-line p-2 xl:p-3 space-y-2">
-          <div className="hidden xl:block space-y-0.5">
-            <div className="font-heading text-[11px] uppercase tracking-wider text-ink-muted">Target</div>
-            <div className="truncate font-mono text-xs text-ink-secondary" title={sourceName}>
-              {sourceName}
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={handleNewScan}
-            title="Return to entry screen"
-            className="flex w-full items-center justify-center xl:justify-start gap-1.5 rounded-sm border border-line bg-page px-2 py-1 font-heading text-xs font-medium uppercase tracking-wider text-ink-secondary hover:border-line-strong hover:text-ink transition-colors"
-          >
-            <span>←</span>
-            <span className="hidden xl:inline">New scan</span>
-          </button>
-        </div>
-      </aside>
-
-      {/* RIGHT WORKSPACE AREA */}
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        {/* TOP BAR: Thin, persistent, above main content */}
-        <header className="flex h-11 shrink-0 items-center justify-between border-b border-line px-4 sm:px-6 bg-surface">
-          {/* View Title */}
-          <h1 className="font-heading text-xs font-semibold uppercase tracking-widest text-ink-muted">
-            {activeNav}
-          </h1>
-
-          {/* Compact Inline Metrics Strip + Theme Toggle */}
-          <div className="flex items-center gap-4 text-xs">
-            <div className="hidden sm:flex items-center gap-3 font-heading">
-              <div className="flex items-center gap-1.5 text-ink-muted">
-                <span className="text-[10px] uppercase tracking-wider">TOTAL:</span>
-                <span className="font-semibold text-xs text-ink tabular-nums">{metrics.totalAssets}</span>
-              </div>
-              <span className="text-line-strong">•</span>
-              <div className="flex items-center gap-1.5 text-ink-muted">
-                <span className="text-[10px] uppercase tracking-wider">REFERENCES:</span>
-                <span className="font-semibold text-xs text-ink tabular-nums">{metrics.referenceAssets}</span>
-              </div>
-              <span className="text-line-strong">•</span>
-              <div className="flex items-center gap-1.5 text-ink-muted">
-                <span className="text-[10px] uppercase tracking-wider">BROKEN BY SHOR:</span>
-                <span className="font-semibold text-xs text-status-critical tabular-nums">{metrics.brokenByShor}</span>
-              </div>
-              <span className="text-line-strong">•</span>
-              <div className="flex items-center gap-1.5 text-ink-muted">
-                <span className="text-[10px] uppercase tracking-wider">CONTRADICTIONS:</span>
-                <span
-                  className={`font-semibold text-xs tabular-nums ${
-                    metrics.contradictions > 0 ? "text-status-critical" : "text-ink"
-                  }`}
-                >
-                  {metrics.contradictions}
-                </span>
-              </div>
-              <span className="text-line-strong">•</span>
-              <div className="group relative flex items-center gap-1.5 text-ink-muted">
-                <button
-                  type="button"
-                  onClick={() => {
-                    const finding = metrics.longestShelfLifeFinding;
-                    const entry = finding ? longestShelfLifeEntry(finding) : undefined;
-                    if (finding && entry) setShelfLifeModal({ assetName: finding.name, entry });
-                  }}
-                  className="flex cursor-help items-center gap-1.5"
-                >
-                  <span className="text-[10px] uppercase tracking-wider">LONGEST SHELF-LIFE:</span>
-                  <span className="font-semibold text-xs text-ink tabular-nums underline decoration-dotted underline-offset-2">
-                    {metrics.longestShelfLife !== undefined ? `${metrics.longestShelfLife}y` : "—"}
-                  </span>
-                </button>
-                <div className="pointer-events-none absolute right-0 top-full z-50 mt-2 hidden w-72 rounded-sm border border-line-strong bg-surface p-3 text-left normal-case text-[11px] leading-relaxed text-ink-secondary shadow-xl group-hover:block">
-                  <p>
-                    The longest data-retention period found across all findings in this scan — the{" "}
-                    <span className="font-mono font-semibold text-ink">X</span> in Mosca&rsquo;s inequality (
-                    <span className="font-mono font-semibold text-ink">X + Y &gt; Z</span>: data shelf-life plus
-                    migration time must not exceed the years until a cryptographically-relevant quantum
-                    computer arrives).
-                  </p>
-                  <p className="mt-1.5">
-                    The single longest-lived sensitive data category in your codebase sets your most urgent
-                    deadline.
-                  </p>
-                  {metrics.longestShelfLifeFinding !== undefined && (
-                    <p className="mt-1.5 font-heading text-[10px] font-semibold uppercase tracking-wider text-ink">
-                      Click to see which finding — {metrics.longestShelfLifeFinding.name}
-                    </p>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <span className="hidden sm:inline-block h-3.5 w-px bg-line" />
-            <a
-              href="https://github.com/shriram-s7/hash_patch/releases/download/v0.1.0/HashPatch-Setup.exe"
-              target="_blank"
-              rel="noopener noreferrer"
-              title="Download standalone HashPatch-Setup.exe (Windows)"
-              className="hidden md:inline-flex items-center gap-1 rounded-sm border border-line bg-surface-2 px-2 py-1 font-heading text-[11px] font-medium uppercase tracking-wider text-ink-secondary hover:border-line-strong hover:text-ink transition-colors"
-            >
-              <span>⬇</span>
-              <span>Demo App (.exe)</span>
-            </a>
-            <ThemeToggle />
-          </div>
-        </header>
-
-        {/* MAIN VIEWPORT */}
-        <main className="min-h-0 flex-1 overflow-hidden bg-page">
+    <AppShell
+      activeNav={activeNav}
+      onNavChange={setActiveNav}
+      sourceName={sourceName}
+      onNewScan={handleNewScan}
+      summary={{
+        totalAssets: metrics.totalAssets,
+        referenceAssets: metrics.referenceAssets,
+        brokenByShor: metrics.brokenByShor,
+        contradictions: metrics.contradictions,
+        longestShelfLife: metrics.longestShelfLife,
+        longestShelfLifeFindingName: metrics.longestShelfLifeFinding?.name,
+        onLongestShelfLifeClick: () => {
+          const finding = metrics.longestShelfLifeFinding;
+          const entry = finding ? longestShelfLifeEntry(finding) : undefined;
+          if (finding && entry) setShelfLifeModal({ assetName: finding.name, entry });
+        },
+      }}
+    >
           {activeNav !== "Ask" && (
             <div key={activeNav} className="animate-mode-in h-full">
               {activeNav === "Repository" && (
@@ -486,15 +283,13 @@ export function App() {
             </div>
           )}
 
-          {/* AskView is preserved across tab navigation so in-flight queries and chat history remain intact */}
-          <div className={activeNav === "Ask" ? "h-full" : "hidden"}>
-            <AskView
-              rawCbomText={rawCbomText}
-              scanId={cbom.serialNumber}
-              plan={plan}
-            />
-          </div>
-        </main>
+      {/* AskView is preserved across tab navigation so in-flight queries and chat history remain intact */}
+      <div className={activeNav === "Ask" ? "h-full" : "hidden"}>
+        <AskView
+          rawCbomText={rawCbomText}
+          scanId={cbom.serialNumber}
+          plan={plan}
+        />
       </div>
 
       {shelfLifeModal && (
@@ -504,7 +299,7 @@ export function App() {
           onClose={() => setShelfLifeModal(undefined)}
         />
       )}
-    </div>
+    </AppShell>
   );
 }
 

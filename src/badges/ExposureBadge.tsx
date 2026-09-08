@@ -22,15 +22,15 @@ export function ExposureBadge({ exposure }: ExposureBadgeProps) {
 
   switch (exposure) {
     case "external":
-      badgeClasses = "bg-status-critical text-white border border-status-critical font-semibold";
-      dotFillClass = "bg-white";
+      badgeClasses = "bg-status-critical-fill text-status-critical-fg border border-status-critical-fill font-semibold";
+      dotFillClass = "bg-status-critical-fg";
       break;
     case "internal":
-      badgeClasses = "bg-status-good text-white border border-status-good font-semibold";
-      dotFillClass = "bg-white";
+      badgeClasses = "bg-status-good-fill text-status-good-fg border border-status-good-fill font-semibold";
+      dotFillClass = "bg-status-good-fg";
       break;
     case "mixed":
-      badgeClasses = "bg-status-warning text-status-warning-fg border border-status-warning font-semibold";
+      badgeClasses = "bg-status-warning-fill text-status-warning-fg border border-status-warning-fill font-semibold";
       dotFillClass = "bg-status-warning-fg";
       break;
     case "unknown":

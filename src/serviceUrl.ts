@@ -20,6 +20,11 @@ declare global {
       getOllamaState?: () => Promise<OllamaProvisionState>;
       /** Subscribe to bundled AI runtime progress. Returns unsubscribe. */
       onOllamaProgress?: (cb: (state: OllamaProvisionState) => void) => () => void;
+      /** Native OS folder picker (main-process dialog.showOpenDialog).
+       * Resolves to the chosen absolute path, or null if cancelled. Present
+       * only in the Electron desktop build — see EntryScreen.tsx's
+       * environment-branched folder-selection paths. */
+      pickDirectory?: () => Promise<string | null>;
     };
   }
 }

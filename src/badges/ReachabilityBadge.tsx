@@ -17,12 +17,12 @@ export function ReachabilityBadge({ reachability, status, mixed }: ReachabilityB
   if (mixed) {
     return (
       <span
-        className="inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 font-heading text-[10px] uppercase tracking-wider bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/40 font-semibold"
+        className="inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 font-heading text-[10px] uppercase tracking-wider bg-status-warning-fill/15 text-status-warning-text border border-status-warning-fill/40 font-semibold"
         title="Asset merges both live and dead/unreachable call sites"
       >
         <span className="relative flex h-1.5 w-1.5 shrink-0" aria-hidden="true">
-          <span className="absolute inline-flex h-full w-full rounded-full bg-amber-500 animate-signal-pulse" />
-          <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-amber-500" />
+          <span className="absolute inline-flex h-full w-full rounded-full bg-status-warning-fill animate-signal-pulse" />
+          <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-status-warning-fill" />
         </span>
         Mixed · see evidence
       </span>
@@ -41,63 +41,67 @@ export function ReachabilityBadge({ reachability, status, mixed }: ReachabilityB
   const resolvedStatus = status ?? "broken-classically";
 
   if (resolvedStatus === "broken-by-shor") {
-    // Risk color: status-critical (red)
+    // Risk color: status-critical (red). "unknown"/"inert" render as
+    // OUTLINE badges (transparent fill, colored text) -- these use the
+    // -text token (independently verified >= 4.5:1 as bare text in both
+    // modes), never the -fill token, which is only tuned to work as a
+    // fill's companion, not as small standalone text.
     switch (reachability) {
       case "live-external":
-        badgeClasses = "bg-status-critical text-white border border-status-critical font-semibold";
-        dotFillClass = "bg-white";
+        badgeClasses = "bg-status-critical-fill text-status-critical-fg border border-status-critical-fill font-semibold";
+        dotFillClass = "bg-status-critical-fg";
         break;
       case "live-internal":
-        badgeClasses = "bg-status-critical text-white border border-status-critical font-semibold";
-        dotFillClass = "bg-white";
+        badgeClasses = "bg-status-critical-fill text-status-critical-fg border border-status-critical-fill font-semibold";
+        dotFillClass = "bg-status-critical-fg";
         break;
       case "unknown":
-        badgeClasses = "bg-transparent text-status-critical border border-status-critical font-normal";
-        dotBorderClass = "border border-status-critical bg-transparent";
+        badgeClasses = "bg-transparent text-status-critical-text border border-status-critical-text font-normal";
+        dotBorderClass = "border border-status-critical-text bg-transparent";
         break;
       case "inert":
-        badgeClasses = "bg-transparent text-status-critical/80 border border-status-critical/60 font-normal";
-        dotBorderClass = "border border-status-critical/60 bg-transparent";
+        badgeClasses = "bg-transparent text-status-critical-text/80 border border-status-critical-text/60 font-normal";
+        dotBorderClass = "border border-status-critical-text/60 bg-transparent";
         break;
     }
   } else if (resolvedStatus === "weakened-by-grover") {
     // Risk color: status-warning (amber)
     switch (reachability) {
       case "live-external":
-        badgeClasses = "bg-status-warning text-status-warning-fg border border-status-warning font-semibold";
+        badgeClasses = "bg-status-warning-fill text-status-warning-fg border border-status-warning-fill font-semibold";
         dotFillClass = "bg-status-warning-fg";
         break;
       case "live-internal":
-        badgeClasses = "bg-status-warning text-status-warning-fg border border-status-warning font-semibold";
+        badgeClasses = "bg-status-warning-fill text-status-warning-fg border border-status-warning-fill font-semibold";
         dotFillClass = "bg-status-warning-fg";
         break;
       case "unknown":
-        badgeClasses = "bg-transparent text-status-warning border border-status-warning font-normal";
-        dotBorderClass = "border border-status-warning bg-transparent";
+        badgeClasses = "bg-transparent text-status-warning-text border border-status-warning-text font-normal";
+        dotBorderClass = "border border-status-warning-text bg-transparent";
         break;
       case "inert":
-        badgeClasses = "bg-transparent text-status-warning/80 border border-status-warning/60 font-normal";
-        dotBorderClass = "border border-status-warning/60 bg-transparent";
+        badgeClasses = "bg-transparent text-status-warning-text/80 border border-status-warning-text/60 font-normal";
+        dotBorderClass = "border border-status-warning-text/60 bg-transparent";
         break;
     }
   } else if (resolvedStatus === "quantum-safe") {
     // Risk color: status-good (green)
     switch (reachability) {
       case "live-external":
-        badgeClasses = "bg-status-good text-white border border-status-good font-semibold";
-        dotFillClass = "bg-white";
+        badgeClasses = "bg-status-good-fill text-status-good-fg border border-status-good-fill font-semibold";
+        dotFillClass = "bg-status-good-fg";
         break;
       case "live-internal":
-        badgeClasses = "bg-status-good text-white border border-status-good font-semibold";
-        dotFillClass = "bg-white";
+        badgeClasses = "bg-status-good-fill text-status-good-fg border border-status-good-fill font-semibold";
+        dotFillClass = "bg-status-good-fg";
         break;
       case "unknown":
-        badgeClasses = "bg-transparent text-status-good border border-status-good font-normal";
-        dotBorderClass = "border border-status-good bg-transparent";
+        badgeClasses = "bg-transparent text-status-good-text border border-status-good-text font-normal";
+        dotBorderClass = "border border-status-good-text bg-transparent";
         break;
       case "inert":
-        badgeClasses = "bg-transparent text-status-good/80 border border-status-good/60 font-normal";
-        dotBorderClass = "border border-status-good/60 bg-transparent";
+        badgeClasses = "bg-transparent text-status-good-text/80 border border-status-good-text/60 font-normal";
+        dotBorderClass = "border border-status-good-text/60 bg-transparent";
         break;
     }
   } else {

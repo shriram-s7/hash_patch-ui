@@ -33,21 +33,50 @@
 
   /* Status palette (quantum status) — semantics fixed: critical =
      broken-by-shor, warning = weakened-by-grover, good = quantum-safe,
-     neutral = broken-classically / unknown (explicitly non-alarming). */
-  --status-critical: #d03b3b;
-  --status-warning: #fab219;
-  --status-good: #0ca30c;
-  --status-neutral-bg: #e1e0d9;
-  --status-neutral-fg: #52514e;
-  /* Algorithm-opaque (cloud KMS/HSM client call) — violet, a hue the
-     quantum verdict scale never uses, so it can never be mistaken for a
-     red/amber/green quantum-risk verdict. */
-  --status-opaque: #7a56d6;
+     neutral = broken-classically / unknown (explicitly non-alarming).
+
+     TWO independent roles per hue, never conflated:
+       -fill : the saturated color used as a badge/pill BACKGROUND, paired
+               with its own -fg token as the text color ON that fill.
+       -text : a separately-tuned, DARKER-for-light/BRIGHTER-for-dark
+               shade of the same hue, for when the color itself is the
+               text (bare status text, an outline-style badge with a
+               transparent fill) — never the -fill value used as text
+               color directly. A -fill value is tuned to read well as a
+               large solid block; used as small text on --page/--surface
+               it can fail WCAG AA even though the SAME value reads fine
+               as a fill in the SAME mode (this is exactly the
+               "amber text illegible in light mode" bug: --status-warning
+               is 9-10:1 as a fill's companion but only ~1.7:1 as bare
+               text on a light background — a single value cannot serve
+               both roles). Every -text token here is independently
+               verified >= 4.5:1 against --page, --surface, AND
+               --surface-2 in ITS OWN mode. */
+  --status-critical-fill: #d03b3b;
+  --status-critical-fg: #ffffff;
+  --status-critical-text: #b91c1c;
+
+  --status-warning-fill: #fab219;
   /* Fixed dark ink for text on the light amber warning fill — intentionally
      NOT `--ink` (which flips light in dark mode and would go unreadable on
      the still-light amber background). Same value in both themes, so it is
      defined once here and never overridden in .dark. */
   --status-warning-fg: #1a1400;
+  --status-warning-text: #8a5a00;
+
+  --status-good-fill: #0ca30c;
+  --status-good-fg: #ffffff;
+  --status-good-text: #0a7d0a;
+
+  --status-neutral-bg: #e1e0d9;
+  --status-neutral-fg: #52514e;
+
+  /* Algorithm-opaque (cloud KMS/HSM client call) — violet, a hue the
+     quantum verdict scale never uses, so it can never be mistaken for a
+     red/amber/green quantum-risk verdict. */
+  --status-opaque-fill: #7a56d6;
+  --status-opaque-fg: #ffffff;
+  --status-opaque-text: #6842c2;
 
   /* Reachability — neutral grayscale with shape/weight differentiation (no hue) */
   --reach-external: #0b0e13;
@@ -79,14 +108,29 @@
      critical = broken-by-shor (red)
      warning  = weakened-by-grover (amber)
      good     = quantum-safe (green)
-     neutral  = broken-classically / unknown (gray) */
-  --status-critical: #d03b3b;
-  --status-warning: #fab219;
-  --status-good: #0c8a0c;
+     neutral  = broken-classically / unknown (gray)
+     See the :root block above for the -fill/-fg/-text role split — every
+     -text value below is independently verified >= 4.5:1 against --page,
+     --surface, AND --surface-2 IN DARK MODE (a value that passes in light
+     mode is never assumed to also pass here). */
+  --status-critical-fill: #d03b3b;
+  --status-critical-fg: #ffffff;
+  --status-critical-text: #f87171;
+
+  --status-warning-fill: #fab219;
+  --status-warning-text: #fab219;
+
+  --status-good-fill: #0c8a0c;
+  --status-good-fg: #ffffff;
+  --status-good-text: #4ade80;
+
   --status-neutral-bg: #1c2531;
   --status-neutral-fg: #93a1b5;
+
   /* Algorithm-opaque (cloud KMS/HSM client call) — violet in dark mode too. */
-  --status-opaque: #8a6ee0;
+  --status-opaque-fill: #8a6ee0;
+  --status-opaque-fg: #ffffff;
+  --status-opaque-text: #9b82e8;
 
   /* Reachability — neutral grayscale in dark mode */
   --reach-external: #e7ecf3;
@@ -112,13 +156,36 @@
   --color-ink-secondary: var(--ink-secondary);
   --color-ink-muted: var(--ink-muted);
 
-  --color-status-critical: var(--status-critical);
-  --color-status-warning: var(--status-warning);
-  --color-status-good: var(--status-good);
+  /* Bare `status-*` utility names (bg-status-critical, text-status-critical,
+     ...) resolve to the FILL role, for backward compatibility with every
+     view not yet migrated to the explicit -fill/-fg/-text split (Findings/
+     Repository/Migration/Relationships/Ask — separate rebuild phases). New
+     code should reach for the explicit suffix: -fill for a badge/pill
+     background, -fg for the text ON that fill, -text when the color
+     itself IS bare/outline text. See the :root block's comment for why
+     these are never interchangeable. */
+  --color-status-critical: var(--status-critical-fill);
+  --color-status-critical-fill: var(--status-critical-fill);
+  --color-status-critical-fg: var(--status-critical-fg);
+  --color-status-critical-text: var(--status-critical-text);
+
+  --color-status-warning: var(--status-warning-fill);
+  --color-status-warning-fill: var(--status-warning-fill);
+  --color-status-warning-fg: var(--status-warning-fg);
+  --color-status-warning-text: var(--status-warning-text);
+
+  --color-status-good: var(--status-good-fill);
+  --color-status-good-fill: var(--status-good-fill);
+  --color-status-good-fg: var(--status-good-fg);
+  --color-status-good-text: var(--status-good-text);
+
+  --color-status-opaque: var(--status-opaque-fill);
+  --color-status-opaque-fill: var(--status-opaque-fill);
+  --color-status-opaque-fg: var(--status-opaque-fg);
+  --color-status-opaque-text: var(--status-opaque-text);
+
   --color-status-neutral-bg: var(--status-neutral-bg);
   --color-status-neutral-fg: var(--status-neutral-fg);
-  --color-status-warning-fg: var(--status-warning-fg);
-  --color-status-opaque: var(--status-opaque);
 
   --color-reach-external: var(--reach-external);
   --color-reach-internal: var(--reach-internal);
@@ -128,11 +195,15 @@
   --color-accent: var(--accent);
   --color-accent-fg: var(--accent-fg);
 
-  /* Typography:
-     - Heading / UI font: Space Grotesk (distinctive character for headings, nav, buttons, claims)
-     - Body / reading font: Inter (neutral workhorse for prose, paragraphs, descriptions)
-     - Monospace font: JetBrains Mono (strictly for evidentiary code, paths, line numbers, hashes, OIDs) */
-  --font-heading: "Space Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  /* Typography — exactly two families, per the forensic-terminal brief:
+     - Sans (Inter): prose, labels, navigation, headings — used sparingly,
+       a quiet frame so the monospace data reads as "evidence" against it.
+       `--font-heading` is an alias of the same family (no third display
+       font) at heavier weight/tracking in components, not a different
+       typeface.
+     - Mono (JetBrains Mono): every piece of DATA — findings, algorithm
+       names, file paths, line numbers, hex digests, OIDs, code. */
+  --font-heading: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
