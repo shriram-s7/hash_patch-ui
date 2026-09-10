@@ -42,7 +42,7 @@ export function ExposureBadge({ exposure }: ExposureBadgeProps) {
 
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 font-heading text-[10px] uppercase tracking-wider ${badgeClasses}`}
+      className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-sm px-2 py-0.5 font-heading text-[10px] uppercase tracking-wider ${badgeClasses}`}
     >
       {exposure === "external" ? (
         <span className="relative flex h-1.5 w-1.5 shrink-0" aria-hidden="true">

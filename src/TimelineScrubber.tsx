@@ -1,9 +1,27 @@
 import { useMemo, useState } from "react";
 import type { Finding } from "./cbom/types";
 import type { PlanScenario, PlanScheduleItem } from "./plan/types";
-import { quantumStatusColor, useThemeColors } from "./useThemeColors";
+import { getNodeColor } from "./graphColors";
 
 const FLOAT_EPSILON = 1e-9;
+
+/** Plain-language walk-through of where the plan stands at the scrubbed
+ * day — built entirely from figures already computed for the stat tiles
+ * (never invented), just phrased as a sentence. */
+function getNarrative(
+  day: number,
+  optimiserPct: number,
+  findingsFixed: number,
+  total: number,
+  divergence: number,
+  budget: number
+): string {
+  if (day === 0) return "At the start of the migration plan, no risk has been eliminated yet.";
+  if (day >= budget) {
+    return `Migration complete. All ${findingsFixed} of ${total} scheduled findings addressed. Optimizer outperformed naive ordering by ${divergence.toFixed(2)}pp over the full plan.`;
+  }
+  return `By day ${day.toFixed(1)}, the optimizer has fixed ${findingsFixed} of ${total} findings, eliminating ${optimiserPct.toFixed(1)}% of total risk — outperforming naive ordering by ${divergence.toFixed(2)}pp.`;
+}
 
 function correlateFinding(item: { findingId: string | undefined; name: string }, findings: Finding[] | undefined) {
   return findings?.find(
@@ -35,7 +53,6 @@ export function TimelineScrubber({
   scenario: PlanScenario;
   findings?: Finding[];
 }) {
-  const colors = useThemeColors();
   const curve = scenario.optimizerRiskCurve;
   const [dayIndex, setDayIndex] = useState(0);
 
@@ -61,7 +78,7 @@ export function TimelineScrubber({
 
   if (curve.length === 0) {
     return (
-      <div className="rounded-sm border border-dashed border-line-strong bg-page p-3 text-xs text-ink-muted">
+      <div className="rounded-xl border border-dashed p-4 text-xs" style={{ borderColor: "#30363d", color: "#8b949e" }}>
         This plan has no residual-risk-curve data to walk (older/hand-built plan JSON).
       </div>
     );
@@ -81,15 +98,17 @@ export function TimelineScrubber({
 
   const fixedCount = allCandidates.filter((c) => c.endDay <= currentDay + FLOAT_EPSILON).length;
   const totalCandidates = allCandidates.length;
+  const budget = curve[curve.length - 1]!.day;
+  const divergence = naivePct !== undefined ? optimizerPct - naivePct : 0;
 
   return (
-    <div className="rounded-sm border border-line bg-page p-3 space-y-3">
+    <div className="space-y-3">
       <div className="flex items-center justify-between gap-2">
-        <div className="font-heading text-[11px] font-medium uppercase tracking-wider text-ink-muted">
+        <div className="text-[11px] font-semibold uppercase tracking-widest" style={{ color: "#8b949e" }}>
           Timeline scrubber — walk the plan day by day
         </div>
-        <div className="font-mono text-xs text-ink-secondary">
-          Day <span className="font-semibold text-ink tabular-nums">{currentDay.toFixed(2)}</span> of{" "}
+        <div className="text-xs" style={{ color: "#8b949e" }}>
+          Day <span className="font-semibold text-white tabular-nums">{currentDay.toFixed(2)}</span> of{" "}
           <span className="tabular-nums">{curve[curve.length - 1]!.day.toFixed(2)}</span>
         </div>
       </div>
@@ -102,72 +121,98 @@ export function TimelineScrubber({
         value={clampedIndex}
         onChange={(e) => setDayIndex(Number(e.target.value))}
         aria-label="Scrub migration timeline by day"
-        className="w-full accent-ink"
+        className="w-full accent-blue-500"
       />
 
+      <p className="text-sm italic" style={{ color: "#94b4d4" }}>
+        {getNarrative(currentDay, optimizerPct, fixedCount, totalCandidates, divergence, budget)}
+      </p>
+
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div className="rounded-sm border border-line bg-surface p-2">
-          <div className="font-heading text-[10px] uppercase tracking-wider text-ink-muted">
+        <div className="rounded-xl border p-3" style={{ background: "#0d1117", borderColor: "#21262d" }}>
+          <div className="text-[10px] uppercase tracking-wide" style={{ color: "#8b949e" }}>
             Optimiser risk eliminated
           </div>
-          <div className="font-heading text-xl font-bold tabular-nums text-ink">{optimizerPct.toFixed(2)}%</div>
+          <div className="text-xl font-bold tabular-nums text-white">{optimizerPct.toFixed(2)}%</div>
         </div>
-        <div className="rounded-sm border border-line bg-surface p-2">
-          <div className="font-heading text-[10px] uppercase tracking-wider text-ink-muted">
+        <div className="rounded-xl border p-3" style={{ background: "#0d1117", borderColor: "#21262d" }}>
+          <div className="text-[10px] uppercase tracking-wide" style={{ color: "#8b949e" }}>
             Naive risk eliminated (same day)
           </div>
-          <div className="font-heading text-xl font-bold tabular-nums text-ink-secondary">
+          <div className="text-xl font-bold tabular-nums" style={{ color: "#c9d1d9" }}>
             {naivePct !== undefined ? `${naivePct.toFixed(2)}%` : "—"}
           </div>
         </div>
-        <div className="rounded-sm border border-line bg-surface p-2">
-          <div className="font-heading text-[10px] uppercase tracking-wider text-ink-muted">Findings fixed</div>
-          <div className="font-heading text-xl font-bold tabular-nums text-ink">
+        <div className="rounded-xl border p-3" style={{ background: "#0d1117", borderColor: "#21262d" }}>
+          <div className="text-[10px] uppercase tracking-wide" style={{ color: "#8b949e" }}>Findings fixed</div>
+          <div className="text-xl font-bold tabular-nums text-white">
             {fixedCount} / {totalCandidates}
           </div>
         </div>
-        <div className="rounded-sm border border-line bg-surface p-2">
-          <div className="font-heading text-[10px] uppercase tracking-wider text-ink-muted">
+        <div className="rounded-xl border p-3" style={{ background: "#0d1117", borderColor: "#21262d" }}>
+          <div className="text-[10px] uppercase tracking-wide" style={{ color: "#8b949e" }}>
             Divergence at this day
           </div>
           <div
-            className={`font-heading text-xl font-bold tabular-nums ${
-              naivePct !== undefined && optimizerPct - naivePct > 0.005
-                ? "text-status-good"
-                : naivePct !== undefined && naivePct - optimizerPct > 0.005
-                ? "text-status-critical"
-                : "text-ink-muted"
-            }`}
+            className="text-xl font-bold tabular-nums"
+            style={{
+              color:
+                naivePct !== undefined && optimizerPct - naivePct > 0.005
+                  ? "#22c55e"
+                  : naivePct !== undefined && naivePct - optimizerPct > 0.005
+                    ? "#ef4444"
+                    : "#8b949e",
+            }}
           >
             {naivePct !== undefined ? `${(optimizerPct - naivePct >= 0 ? "+" : "") + (optimizerPct - naivePct).toFixed(2)}pp` : "—"}
           </div>
         </div>
       </div>
 
+      <div className="rounded-lg p-3" style={{ background: "#0d1a2e", borderLeft: "4px solid #3b82f6" }}>
+        <div className="flex items-start gap-2">
+          <span className="shrink-0 text-sm" style={{ color: "#3b82f6" }}>ℹ</span>
+          <div>
+            <p className="mb-1 text-xs font-bold" style={{ color: "#f0f6fc" }}>What is Divergence?</p>
+            <p className="text-xs" style={{ color: "#94b4d4" }}>
+              Divergence shows how many more percentage points of risk the Hash Patch optimizer has eliminated
+              compared to a naive strategy (fixing highest-priority findings first, no sequencing).{" "}
+              <span className="font-medium" style={{ color: "#22c55e" }}>Positive = optimizer is ahead.</span>{" "}
+              Zero = tied. As you drag the timeline, watch this grow.
+            </p>
+          </div>
+        </div>
+      </div>
+
       <div>
-        <div className="mb-1.5 font-heading text-[10px] uppercase tracking-wider text-ink-muted">
+        <div className="mb-1.5 text-[10px] uppercase tracking-wide" style={{ color: "#8b949e" }}>
           Progress — filled = fixed by day {currentDay.toFixed(2)}, outline = not yet fixed
         </div>
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap gap-3">
           {allCandidates.map((c, i) => {
             const correlated = correlateFinding(c, findings);
-            const color = quantumStatusColor(colors, correlated?.quantumStatus);
+            const color = getNodeColor(correlated?.quantumStatus);
             const isFixed = c.endDay <= currentDay + FLOAT_EPSILON;
             return (
-              <span
+              <div
                 key={i}
+                className="flex flex-col items-center gap-1"
                 title={
                   c.unmigrated
                     ? `${c.name}: never fits in budget under this ordering`
                     : `${c.name}: fixed day ${c.startDay}–${c.endDay}`
                 }
-                style={{
-                  backgroundColor: isFixed ? color : "transparent",
-                  borderColor: color,
-                }}
-                className="h-3 w-3 shrink-0 rounded-full border-2 transition-colors"
-                aria-hidden="true"
-              />
+              >
+                <div
+                  className="h-4 w-4 shrink-0 rounded-full border-2 transition-all"
+                  style={{
+                    backgroundColor: isFixed ? color : "transparent",
+                    borderColor: color,
+                  }}
+                  aria-hidden="true"
+                />
+                <span className="text-[9px]" style={{ color: "#8b949e" }}>{c.name.slice(0, 4)}</span>
+              </div>
             );
           })}
         </div>

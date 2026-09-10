@@ -1,42 +1,70 @@
 import { useMemo, useState } from "react";
-import type { Finding, ParsedCbom, ShelfLifeEntry } from "./cbom/types";
+import type { Finding, ParsedCbom } from "./cbom/types";
+import { parseCbomDocument } from "./cbom/cbomToFindings";
 import { parsePlanDocument } from "./plan/parsePlan";
 import type { ParsedPlan } from "./plan/types";
 import { AppShell, type NavItem } from "./AppShell";
 import { EntryScreen } from "./EntryScreen";
+import { HomeView } from "./HomeView";
 import { RepositoryView } from "./RepositoryView";
 import { FindingsTable } from "./FindingsTable";
 import { DetailPanel } from "./DetailPanel";
+import { UniqueFindingDetailPanel, groupUniqueFindings } from "./UniqueFindingsPanel";
 import { GraphMode } from "./GraphMode";
+import { BlastRadiusView } from "./BlastRadiusView";
 import { MigrationView } from "./MigrationView";
 import { ReportView } from "./ReportView";
-import { ShelfLifeModal } from "./ShelfLifeModal";
 import { AskView } from "./AskView";
+import { SettingsView } from "./SettingsView";
+import { FeedbackView } from "./FeedbackView";
+import { ResizableDivider } from "./components/ResizableDivider";
 import { SERVICE_BASE_URL } from "./serviceUrl";
+import { addToHistory } from "./scanHistory";
 
-/** The ShelfLifeEntry backing a finding's longestShelfLifeYears value (same
- * pattern FindingsTable.tsx / FileCodeView.tsx use — the CBOM only stores
- * shelf-life per-category, so the "longest" one is looked up by value). */
-function longestShelfLifeEntry(finding: Finding): ShelfLifeEntry | undefined {
-  if (finding.longestShelfLifeYears === undefined) return undefined;
-  return finding.shelfLife.find((s) => s.shelfLifeYears === finding.longestShelfLifeYears);
-}
+const FINDINGS_DETAIL_WIDTH_KEY = "findings-detail-width";
+const FINDINGS_DETAIL_WIDTH_DEFAULT = 380;
+const FINDINGS_DETAIL_WIDTH_MIN = 320;
+const FINDINGS_DETAIL_WIDTH_MAX = 560;
 
 export function App() {
   const [cbom, setCbom] = useState<ParsedCbom | undefined>(undefined);
   const [rawCbomText, setRawCbomText] = useState<string | undefined>(undefined);
   const [sourceName, setSourceName] = useState<string>("");
   const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
-  const [activeNav, setActiveNav] = useState<NavItem>("Repository");
+  const [findingsViewMode, setFindingsViewMode] = useState<"all" | "unique">("all");
+  const [selectedUniqueKey, setSelectedUniqueKey] = useState<string | undefined>(undefined);
+  const [activeNav, setActiveNav] = useState<NavItem>("Home");
+  // Full file view (inside Repository) wants the whole viewport width, so
+  // the global sidebar hides while it's open -- set by RepositoryView via
+  // onImmersiveChange, gated by activeNav so navigating away always shows
+  // the sidebar again even if that internal state is stale.
+  const [fileViewActive, setFileViewActive] = useState(false);
+  const [findingsDetailWidth, setFindingsDetailWidth] = useState(() => {
+    const saved = localStorage.getItem(FINDINGS_DETAIL_WIDTH_KEY);
+    return saved ? parseInt(saved) : FINDINGS_DETAIL_WIDTH_DEFAULT;
+  });
+
+  const handleFindingsDetailResize = (delta: number) => {
+    if (delta === 0) {
+      setFindingsDetailWidth(FINDINGS_DETAIL_WIDTH_DEFAULT);
+      localStorage.removeItem(FINDINGS_DETAIL_WIDTH_KEY);
+      return;
+    }
+    setFindingsDetailWidth((w) => {
+      // The divider sits to the LEFT of this panel, so dragging it right
+      // (positive delta) should shrink the panel, not grow it.
+      const next = Math.min(FINDINGS_DETAIL_WIDTH_MAX, Math.max(FINDINGS_DETAIL_WIDTH_MIN, w - delta));
+      localStorage.setItem(FINDINGS_DETAIL_WIDTH_KEY, String(next));
+      return next;
+    });
+  };
 
   const [plan, setPlan] = useState<ParsedPlan | undefined>(undefined);
   const [isDemoPlan, setIsDemoPlan] = useState<boolean>(false);
   const [isOptimizing, setIsOptimizing] = useState<boolean>(false);
   const [budgetDays, setBudgetDays] = useState<number>(5.0);
   const [planError, setPlanError] = useState<string | undefined>(undefined);
-  const [shelfLifeModal, setShelfLifeModal] = useState<{ assetName: string; entry: ShelfLifeEntry } | undefined>(
-    undefined,
-  );
+  const [isRescanning, setIsRescanning] = useState(false);
 
   async function optimizeScan(cbomObj: unknown, budget: number = 5.0) {
     if (!cbomObj) return;
@@ -74,10 +102,16 @@ export function App() {
     setRawCbomText(rawJson);
     setSourceName(targetPath);
     setSelectedId(undefined);
-    setActiveNav("Repository");
+    setActiveNav("Home");
     setPlan(undefined);
     setIsDemoPlan(false);
     setPlanError(undefined);
+
+    addToHistory({
+      target: targetPath,
+      timestamp: Date.now(),
+      findingCount: parsed.findings.length,
+    });
 
     try {
       const parsedObj = JSON.parse(rawJson);
@@ -92,10 +126,16 @@ export function App() {
     setRawCbomText(rawJson);
     setSourceName(fileName);
     setSelectedId(undefined);
-    setActiveNav("Repository");
+    setActiveNav("Home");
     setPlan(undefined);
     setIsDemoPlan(false);
     setPlanError(undefined);
+
+    addToHistory({
+      target: fileName,
+      timestamp: Date.now(),
+      findingCount: parsed.findings.length,
+    });
 
     try {
       const parsedObj = JSON.parse(rawJson);
@@ -105,12 +145,37 @@ export function App() {
     }
   }
 
+  async function handleScanPath(pathToScan = sourceName) {
+    const target = pathToScan.trim().replace(/^["']|["']$/g, "");
+    if (!target || isRescanning) return;
+    setIsRescanning(true);
+    try {
+      const response = await fetch(`${SERVICE_BASE_URL}/api/scan`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path: target }),
+      });
+      if (!response.ok) {
+        const errData = (await response.json().catch(() => ({}))) as { detail?: string };
+        throw new Error(errData.detail || `Scan failed with HTTP status ${response.status}`);
+      }
+      const cbomJson = (await response.json()) as Record<string, unknown>;
+      handleScanSuccess(JSON.stringify(cbomJson, null, 2), parseCbomDocument(cbomJson), target);
+    } catch (err) {
+      console.error("Scan failed:", err);
+    } finally {
+      setIsRescanning(false);
+    }
+  }
+
+  const handleRescan = () => void handleScanPath(sourceName);
+
   function handleNewScan() {
     setCbom(undefined);
     setRawCbomText(undefined);
     setSourceName("");
     setSelectedId(undefined);
-    setActiveNav("Repository");
+    setActiveNav("Home");
     setPlan(undefined);
     setIsDemoPlan(false);
     setPlanError(undefined);
@@ -176,9 +241,37 @@ export function App() {
 
   const selectedFinding = cbom?.findings.find((f) => f.id === selectedId);
 
-  // Screen 0 - Entry state before any scan exists
+  const uniqueGroups = useMemo(
+    () => (cbom?.findings ? groupUniqueFindings(cbom.findings) : []),
+    [cbom?.findings],
+  );
+  const selectedUniqueGroup = useMemo(
+    () => uniqueGroups.find((g) => g.key === selectedUniqueKey),
+    [uniqueGroups, selectedUniqueKey],
+  );
+
+  // Screen 0 - Entry state before any scan exists. Settings and Feedback
+  // are app-level (not scan-dependent), so they're reachable here too --
+  // everything else in the sidebar has nothing to navigate to yet.
   if (!cbom) {
-    return <EntryScreen onScanSuccess={handleScanSuccess} onFileLoaded={handleFileLoaded} />;
+    return (
+      <AppShell
+        activeNav={activeNav}
+        onNavChange={setActiveNav}
+        sourceName=""
+        onNewScan={() => {}}
+        hasScan={false}
+        findingsCount={0}
+      >
+        {activeNav === "Settings" ? (
+          <SettingsView />
+        ) : activeNav === "Feedback" ? (
+          <FeedbackView />
+        ) : (
+          <EntryScreen onScanSuccess={handleScanSuccess} onFileLoaded={handleFileLoaded} />
+        )}
+      </AppShell>
+    );
   }
 
   return (
@@ -187,59 +280,149 @@ export function App() {
       onNavChange={setActiveNav}
       sourceName={sourceName}
       onNewScan={handleNewScan}
-      summary={{
-        totalAssets: metrics.totalAssets,
-        referenceAssets: metrics.referenceAssets,
-        brokenByShor: metrics.brokenByShor,
-        contradictions: metrics.contradictions,
-        longestShelfLife: metrics.longestShelfLife,
-        longestShelfLifeFindingName: metrics.longestShelfLifeFinding?.name,
-        onLongestShelfLifeClick: () => {
-          const finding = metrics.longestShelfLifeFinding;
-          const entry = finding ? longestShelfLifeEntry(finding) : undefined;
-          if (finding && entry) setShelfLifeModal({ assetName: finding.name, entry });
-        },
-      }}
+      hasScan={true}
+      findingsCount={cbom.findings.length}
+      immersive={activeNav === "Repository" && fileViewActive}
     >
           {activeNav !== "Ask" && (
             <div key={activeNav} className="animate-mode-in h-full">
+              {activeNav === "Home" && (
+                <HomeView
+                  sourceName={sourceName}
+                  timestamp={cbom.timestamp}
+                  findings={cbom.findings}
+                  scannedFiles={cbom.scannedFiles}
+                  onNavigate={setActiveNav}
+                  onRescan={() => void handleRescan()}
+                  isRescanning={isRescanning}
+                  onClearScan={handleNewScan}
+                  rawCbomText={rawCbomText}
+                  onLoadScan={(target) => void handleScanPath(target)}
+                />
+              )}
+
               {activeNav === "Repository" && (
                 <RepositoryView
                   sourceName={sourceName}
                   findings={cbom.findings}
                   scannedFiles={cbom.scannedFiles}
+                  timestamp={cbom.timestamp}
+                  onNavigate={setActiveNav}
+                  onRescan={() => void handleRescan()}
+                  isRescanning={isRescanning}
+                  onImmersiveChange={setFileViewActive}
+                  rawCbomText={rawCbomText}
+                  onClearScan={handleNewScan}
+                  onLoadScan={(target) => void handleScanPath(target)}
                 />
               )}
 
               {activeNav === "Findings" && (
-                <div className="h-full overflow-y-auto p-4 sm:p-6 space-y-4">
-                  <div className="border-b border-line pb-3">
-                    <h2 className="font-heading text-[26px] font-medium text-ink tracking-tight">
-                      Cryptographic Findings
-                    </h2>
-                    <p className="mt-1 font-sans text-sm text-ink-muted leading-relaxed">
-                      Complete inventory of detected cryptographic assets, ordered by combined algorithmic vulnerability and runtime reachability.
-                    </p>
+                <div className="flex h-full flex-col overflow-hidden p-4 sm:p-6" style={{ background: "#0d1117" }}>
+                  <div className="shrink-0 border-b pb-3" style={{ borderColor: "#21262d" }}>
+                    <div className="flex flex-wrap items-center justify-between gap-4">
+                      <div>
+                        <h1 className="text-2xl font-bold text-white">Cryptographic Findings</h1>
+                        <p className="mt-1 text-sm" style={{ color: "#8b949e" }}>
+                          {findingsViewMode === "all"
+                            ? "Complete inventory of detected cryptographic assets, ordered by combined algorithmic vulnerability and runtime reachability."
+                            : "Consolidated inventory of unique cryptographic algorithms, grouped across all scan occurrences."}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1 rounded-lg border p-1" style={{ borderColor: "#30363d", background: "#161b22" }}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFindingsViewMode("all");
+                            setSelectedUniqueKey(undefined);
+                          }}
+                          className={`flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-semibold transition-all ${
+                            findingsViewMode === "all"
+                              ? "bg-[#3b82f6] text-white shadow-sm"
+                              : "text-[#8b949e] hover:bg-[#21262d] hover:text-[#f0f6fc]"
+                          }`}
+                        >
+                          <span>All Findings</span>
+                          <span
+                            className="rounded-full px-2 py-0.5 text-[10px] font-bold"
+                            style={{
+                              background: findingsViewMode === "all" ? "rgba(255,255,255,0.2)" : "#21262d",
+                              color: findingsViewMode === "all" ? "#ffffff" : "#8b949e",
+                            }}
+                          >
+                            {cbom.findings.length}
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFindingsViewMode("unique");
+                            setSelectedId(undefined);
+                          }}
+                          className={`flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-semibold transition-all ${
+                            findingsViewMode === "unique"
+                              ? "bg-[#3b82f6] text-white shadow-sm"
+                              : "text-[#8b949e] hover:bg-[#21262d] hover:text-[#f0f6fc]"
+                          }`}
+                        >
+                          <span>Unique Only</span>
+                          <span
+                            className="rounded-full px-2 py-0.5 text-[10px] font-bold"
+                            style={{
+                              background: findingsViewMode === "unique" ? "rgba(255,255,255,0.2)" : "#21262d",
+                              color: findingsViewMode === "unique" ? "#ffffff" : "#8b949e",
+                            }}
+                          >
+                            {uniqueGroups.length}
+                          </span>
+                        </button>
+                      </div>
+                    </div>
                   </div>
-                  <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-                    <div className={selectedFinding ? "lg:col-span-2" : "lg:col-span-3"}>
+                  <div className="flex min-h-0 flex-1 gap-0 pt-4">
+                    <div className="min-w-0 flex-1 overflow-y-auto">
                       <FindingsTable
                         findings={cbom.findings}
                         selectedId={selectedId}
                         onSelect={(f) => setSelectedId(f.id)}
+                        viewMode={findingsViewMode}
+                        onViewModeChange={(m) => {
+                          setFindingsViewMode(m);
+                          if (m === "all") setSelectedUniqueKey(undefined);
+                          else setSelectedId(undefined);
+                        }}
+                        selectedUniqueKey={selectedUniqueKey}
+                        onSelectUniqueGroup={(g) => setSelectedUniqueKey(g.key)}
                       />
                     </div>
-                    {selectedFinding && (
-                      <div className="lg:col-span-1">
-                        <DetailPanel finding={selectedFinding} onClose={() => setSelectedId(undefined)} />
-                      </div>
+                    {findingsViewMode === "all" && selectedFinding && (
+                      <>
+                        <ResizableDivider onResize={handleFindingsDetailResize} />
+                        <div className="shrink-0 overflow-hidden" style={{ width: findingsDetailWidth, minWidth: 320 }}>
+                          <DetailPanel finding={selectedFinding} onClose={() => setSelectedId(undefined)} />
+                        </div>
+                      </>
+                    )}
+                    {findingsViewMode === "unique" && selectedUniqueGroup && (
+                      <>
+                        <ResizableDivider onResize={handleFindingsDetailResize} />
+                        <div className="shrink-0 overflow-hidden" style={{ width: findingsDetailWidth, minWidth: 360 }}>
+                          <UniqueFindingDetailPanel
+                            group={selectedUniqueGroup}
+                            onClose={() => setSelectedUniqueKey(undefined)}
+                            onSelectFinding={(f) => {
+                              setSelectedId(f.id);
+                            }}
+                          />
+                        </div>
+                      </>
                     )}
                   </div>
                 </div>
               )}
 
               {activeNav === "Relationships" && (
-                <div className="h-full overflow-hidden p-4 sm:p-6">
+                <div className="h-full overflow-hidden p-4 sm:p-6" style={{ background: "#0d1117" }}>
                   <GraphMode
                     findings={cbom.findings}
                     metrics={metrics}
@@ -249,11 +432,13 @@ export function App() {
                 </div>
               )}
 
+              {activeNav === "BlastRadius" && (
+                <BlastRadiusView findings={cbom.findings} selectedId={selectedId} onSelect={setSelectedId} />
+              )}
+
               {activeNav === "Migration" && (
                 <MigrationView
                   findings={cbom.findings}
-                  selectedId={selectedId}
-                  onSelectId={setSelectedId}
                   plan={plan}
                   isDemoPlan={isDemoPlan}
                   isOptimizing={isOptimizing}
@@ -265,7 +450,7 @@ export function App() {
                   }}
                   onLoadDemoPlan={loadDemoPlan}
                   onRecalculatePlan={handleRecalculatePlan}
-                  scannedFiles={cbom.scannedFiles}
+                  onNavigate={setActiveNav}
                 />
               )}
 
@@ -278,8 +463,13 @@ export function App() {
                   plan={plan}
                   isDemoPlan={isDemoPlan}
                   scannedFiles={cbom.scannedFiles}
+                  onNavigate={setActiveNav}
                 />
               )}
+
+              {activeNav === "Settings" && <SettingsView />}
+
+              {activeNav === "Feedback" && <FeedbackView />}
             </div>
           )}
 
@@ -291,14 +481,6 @@ export function App() {
           plan={plan}
         />
       </div>
-
-      {shelfLifeModal && (
-        <ShelfLifeModal
-          assetName={shelfLifeModal.assetName}
-          entry={shelfLifeModal.entry}
-          onClose={() => setShelfLifeModal(undefined)}
-        />
-      )}
     </AppShell>
   );
 }

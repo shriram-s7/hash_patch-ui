@@ -5,6 +5,8 @@ import { ReachabilityBadge } from "./badges/ReachabilityBadge";
 import { ExposureBadge } from "./badges/ExposureBadge";
 import { compareFindingsPriority } from "./priority";
 import { ShelfLifeModal } from "./ShelfLifeModal";
+import { groupUniqueFindings, type UniqueFindingGroup } from "./UniqueFindingsPanel";
+import { Layers, ListFilter } from "lucide-react";
 
 /** The ShelfLifeEntry backing a finding's longestShelfLifeYears value (the
  * one FindingsTable's "Shelf-life (yrs)" column actually displays), or
@@ -30,6 +32,7 @@ const STAGGER_STEP_MS = 12;
 
 type FilterValue = "all" | Reachability | "mixed";
 type ExposureFilterValue = "all" | ExposureState;
+type QuantumFilterValue = "all" | "broken-by-shor" | "weakened-by-grover" | "quantum-safe" | "broken-classically";
 
 interface FilterOption {
   value: FilterValue;
@@ -38,6 +41,11 @@ interface FilterOption {
 
 interface ExposureFilterOption {
   value: ExposureFilterValue;
+  label: string;
+}
+
+interface QuantumFilterOption {
+  value: QuantumFilterValue;
   label: string;
 }
 
@@ -58,22 +66,51 @@ const EXPOSURE_FILTER_OPTIONS: ExposureFilterOption[] = [
   { value: "unknown", label: "Unknown" },
 ];
 
+const QUANTUM_FILTER_OPTIONS: QuantumFilterOption[] = [
+  { value: "all", label: "All Unique" },
+  { value: "broken-by-shor", label: "Broken by Shor" },
+  { value: "weakened-by-grover", label: "Weakened by Grover" },
+  { value: "quantum-safe", label: "Quantum-safe" },
+  { value: "broken-classically", label: "Broken Classically" },
+];
+
 export function FindingsTable({
   findings,
   selectedId,
   onSelect,
+  viewMode: controlledViewMode,
+  onViewModeChange,
+  selectedUniqueKey,
+  onSelectUniqueGroup,
 }: {
   findings: Finding[];
   selectedId: string | undefined;
   onSelect: (finding: Finding) => void;
+  viewMode?: "all" | "unique";
+  onViewModeChange?: (mode: "all" | "unique") => void;
+  selectedUniqueKey?: string;
+  onSelectUniqueGroup?: (group: UniqueFindingGroup) => void;
 }) {
+  const [internalViewMode, setInternalViewMode] = useState<"all" | "unique">("all");
+  const viewMode = controlledViewMode ?? internalViewMode;
+  const setViewMode = (mode: "all" | "unique") => {
+    setInternalViewMode(mode);
+    onViewModeChange?.(mode);
+  };
+
   // Reachability filter state: Set of selected filters. Defaults to ["all"]
   const [selectedFilters, setSelectedFilters] = useState<Set<FilterValue>>(new Set(["all"]));
   // Exposure filter state: Set of selected filters. Defaults to ["all"]
   const [selectedExposureFilters, setSelectedExposureFilters] = useState<Set<ExposureFilterValue>>(new Set(["all"]));
+  // Unique view quantum status filter
+  const [selectedQuantumFilters, setSelectedQuantumFilters] = useState<Set<QuantumFilterValue>>(new Set(["all"]));
+
   const [shelfLifeModal, setShelfLifeModal] = useState<{ assetName: string; entry: ShelfLifeEntry } | undefined>(
     undefined
   );
+
+  // Group findings into unique algorithms
+  const uniqueGroups = useMemo(() => groupUniqueFindings(findings), [findings]);
 
   const handleToggleFilter = (val: FilterValue) => {
     setSelectedFilters((prev) => {
@@ -214,47 +251,290 @@ export function FindingsTable({
       return reachMatch && exposureMatch;
     });
   }, [findings, selectedFilters, selectedExposureFilters]);
+  // Unique counts for quantum filters:
+  const uniqueCounts = useMemo(() => {
+    const counts: Record<string, number> = {
+      all: uniqueGroups.length,
+      "broken-by-shor": 0,
+      "weakened-by-grover": 0,
+      "quantum-safe": 0,
+      "broken-classically": 0,
+    };
+    for (const g of uniqueGroups) {
+      const qs = g.quantumStatus ?? "broken-by-shor";
+      if (counts[qs] !== undefined) {
+        counts[qs] += 1;
+      }
+    }
+    return counts;
+  }, [uniqueGroups]);
+
+  const handleToggleQuantumFilter = (val: QuantumFilterValue) => {
+    setSelectedQuantumFilters((prev) => {
+      const next = new Set(prev);
+      if (val === "all") return new Set(["all"]);
+      next.delete("all");
+      if (next.has(val)) next.delete(val);
+      else next.add(val);
+      if (next.size === 0 || next.size === 4) return new Set(["all"]);
+      return next;
+    });
+  };
+
+  const visibleUniqueGroups = useMemo(() => {
+    if (selectedQuantumFilters.has("all")) return uniqueGroups;
+    return uniqueGroups.filter((g) => {
+      const qs = g.quantumStatus ?? "broken-by-shor";
+      return selectedQuantumFilters.has(qs as QuantumFilterValue);
+    });
+  }, [uniqueGroups, selectedQuantumFilters]);
 
   return (
     <div className="space-y-3">
-      {/* Reachability Filter Chips */}
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="font-heading text-[11px] font-medium uppercase tracking-wider text-ink-muted mr-1">
-          Filter Reachability:
-        </span>
-        {FILTER_OPTIONS.map((opt) => {
-          const isActive = selectedFilters.has(opt.value);
-          const count = filterCounts[opt.value] ?? 0;
-          return (
-            <button
-              key={opt.value}
-              type="button"
-              onClick={() => handleToggleFilter(opt.value)}
-              className={`inline-flex items-center gap-1.5 rounded-sm px-2.5 py-1 font-heading text-xs transition-colors ${
-                isActive
-                  ? "border border-ink bg-surface-2 font-semibold text-ink shadow-xs"
-                  : "border border-line bg-surface text-ink-secondary hover:border-line-strong hover:text-ink"
-              }`}
+      {/* Top View Mode Switcher + Count summary */}
+      <div className="flex flex-wrap items-center justify-between gap-3 pb-2 border-b" style={{ borderColor: "#21262d" }}>
+        <div className="flex items-center gap-1 rounded-lg border p-1" style={{ borderColor: "#30363d", background: "#161b22" }}>
+          <button
+            type="button"
+            onClick={() => setViewMode("all")}
+            className={`flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-semibold transition-all ${
+              viewMode === "all"
+                ? "bg-[#3b82f6] text-white shadow-sm"
+                : "text-[#8b949e] hover:bg-[#21262d] hover:text-[#f0f6fc]"
+            }`}
+          >
+            <ListFilter className="h-3.5 w-3.5" />
+            <span>All Findings</span>
+            <span
+              className="rounded-full px-2 py-0.2 font-mono text-[10px] tabular-nums font-bold"
+              style={{
+                background: viewMode === "all" ? "rgba(255,255,255,0.2)" : "#21262d",
+                color: viewMode === "all" ? "#ffffff" : "#8b949e",
+              }}
             >
-              <span>{opt.label}</span>
-              <span className="rounded-full bg-page/60 px-1.5 py-0.2 font-mono text-[10px] text-ink-muted tabular-nums">
-                {opt.value === "all" && referenceCount + certificateCount > 0
-                  ? `${filterCounts.all - referenceCount - certificateCount} + ${referenceCount + certificateCount} ref/cert`
-                  : count}
-              </span>
-            </button>
-          );
-        })}
-        {referenceCount + certificateCount > 0 && (
-          <span className="font-mono text-[10px] text-ink-muted">
-            (reachability buckets below are operation-only — references and certificates are never assigned one)
-          </span>
-        )}
+              {findings.length}
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode("unique")}
+            className={`flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-semibold transition-all ${
+              viewMode === "unique"
+                ? "bg-[#3b82f6] text-white shadow-sm"
+                : "text-[#8b949e] hover:bg-[#21262d] hover:text-[#f0f6fc]"
+            }`}
+          >
+            <Layers className="h-3.5 w-3.5" />
+            <span>Unique Only</span>
+            <span
+              className="rounded-full px-2 py-0.2 font-mono text-[10px] tabular-nums font-bold"
+              style={{
+                background: viewMode === "unique" ? "rgba(255,255,255,0.2)" : "#21262d",
+                color: viewMode === "unique" ? "#ffffff" : "#8b949e",
+              }}
+            >
+              {uniqueGroups.length}
+            </span>
+          </button>
+        </div>
+
+        <div className="text-xs text-[#8b949e]">
+          {viewMode === "all" ? (
+            <span>Showing individual occurrence items with runtime reachability & blast radius</span>
+          ) : (
+            <span className="text-blue-400 font-medium">
+              Showing {visibleUniqueGroups.length} unique cryptographic algorithms ({uniqueGroups.length} total) across {findings.length} occurrences
+            </span>
+          )}
+        </div>
       </div>
 
+      {viewMode === "unique" ? (
+        /* ================= UNIQUE ONLY VIEW ================= */
+        <div className="space-y-3">
+          {/* Quantum Status Filter Chips with Unique Counts */}
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="mr-1 text-[11px] font-semibold uppercase tracking-widest" style={{ color: "#8b949e" }}>
+              Filter Status:
+            </span>
+            {QUANTUM_FILTER_OPTIONS.map((opt) => {
+              const isActive = selectedQuantumFilters.has(opt.value);
+              const count = uniqueCounts[opt.value] ?? 0;
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => handleToggleQuantumFilter(opt.value)}
+                  className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors"
+                  style={
+                    isActive
+                      ? { background: "#3b82f6", borderColor: "#3b82f6", color: "#ffffff" }
+                      : { background: "transparent", borderColor: "#30363d", color: "#c9d1d9" }
+                  }
+                >
+                  <span>{opt.label}</span>
+                  <span
+                    className="rounded-full px-1.5 py-0.2 font-mono text-[10px] tabular-nums"
+                    style={{ background: isActive ? "rgba(255,255,255,0.2)" : "#21262d", color: isActive ? "#ffffff" : "#8b949e" }}
+                  >
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Unique Only Table */}
+          <div className="overflow-x-auto rounded-xl border" style={{ borderColor: "#21262d", background: "#0d1117" }}>
+            <table className="w-full text-left text-sm">
+              <thead>
+                <tr>
+                  {["Algorithm / Unique Asset", "Occurrences", "Quantum Status", "Category", "Recommended Migration", "Standard / Shelf-Life"].map((h) => (
+                    <th key={h} className="border-b px-3.5 py-2.5 text-[11px] font-medium uppercase tracking-wide" style={{ borderColor: "#21262d", color: "#6e7681" }}>
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {visibleUniqueGroups.map((g, i) => {
+                  const isSelected = g.key === selectedUniqueKey;
+                  return (
+                    <tr
+                      key={g.key}
+                      onClick={() => onSelectUniqueGroup?.(g)}
+                      className={`animate-row-in cursor-pointer border-b last:border-b-0 transition-colors ${
+                        isSelected ? "font-semibold" : "hover:bg-[#161b22] font-normal"
+                      }`}
+                      style={{
+                        borderColor: "#21262d",
+                        background: isSelected ? "#1d2d44" : "transparent",
+                        animationDelay: `${Math.min(i * STAGGER_STEP_MS, MAX_STAGGER_MS)}ms`,
+                      }}
+                    >
+                      {/* Algorithm / Asset name & tags */}
+                      <td className="px-3.5 py-3 text-sm font-semibold text-white">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-white text-sm">{g.displayName}</span>
+                          {g.hasCertificate && (
+                            <span className="font-mono text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded bg-surface-2 text-ink-muted border border-line">
+                              Certificate
+                            </span>
+                          )}
+                          {g.hasReference && (
+                            <span className="font-mono text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded bg-surface-2 text-ink-muted border border-line">
+                              Reference
+                            </span>
+                          )}
+                          {g.hasCloudKey && (
+                            <span className="font-mono text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded bg-status-opaque text-white border border-line">
+                              Cloud KMS
+                            </span>
+                          )}
+                          {g.hasBinaryCrypto && (
+                            <span className="font-mono text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded bg-indigo-950/80 text-indigo-300 border border-indigo-700/50">
+                              Compiled Binary
+                            </span>
+                          )}
+                        </div>
+                      </td>
+
+                      {/* Occurrences count */}
+                      <td className="px-3.5 py-3">
+                        <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                          <Layers className="h-3 w-3" />
+                          <span>{g.count} {g.count === 1 ? "occurrence" : "occurrences"}</span>
+                        </span>
+                      </td>
+
+                      {/* Quantum Status */}
+                      <td className="px-3.5 py-3">
+                        <QuantumStatusBadge status={g.quantumStatus} />
+                      </td>
+
+                      {/* Category */}
+                      <td className="px-3.5 py-3 text-xs text-[#c9d1d9] capitalize">
+                        {g.category}
+                      </td>
+
+                      {/* Recommended Replacement */}
+                      <td className="px-3.5 py-3 text-xs">
+                        <span className="font-semibold text-emerald-400">
+                          {g.recommendation.recommendedAlgorithm}
+                        </span>
+                      </td>
+
+                      {/* Standard / Shelf-Life */}
+                      <td className="px-3.5 py-3 text-xs text-[#8b949e]">
+                        <div>{g.recommendation.standard}</div>
+                        {g.longestShelfLifeYears !== undefined && (
+                          <div className="text-[11px] text-[#c9d1d9] mt-0.5">
+                            Shelf-life: {g.longestShelfLifeYears} yrs
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+                {visibleUniqueGroups.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-8 text-center space-y-1">
+                      <p className="font-heading text-base font-medium text-ink">No unique findings match filter</p>
+                      <p className="font-sans text-sm text-ink-muted leading-relaxed">
+                        Try selecting "All Unique" to view all unique cryptographic algorithms.
+                      </p>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : (
+        /* ================= ALL FINDINGS VIEW ================= */
+        <div className="space-y-3">
+          {/* Reachability Filter Chips */}
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="mr-1 text-[11px] font-semibold uppercase tracking-widest" style={{ color: "#8b949e" }}>
+              Filter Reachability:
+            </span>
+            {FILTER_OPTIONS.map((opt) => {
+              const isActive = selectedFilters.has(opt.value);
+              const count = filterCounts[opt.value] ?? 0;
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => handleToggleFilter(opt.value)}
+                  className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors"
+                  style={
+                    isActive
+                      ? { background: "#3b82f6", borderColor: "#3b82f6", color: "#ffffff" }
+                      : { background: "transparent", borderColor: "#30363d", color: "#c9d1d9" }
+                  }
+                >
+                  <span>{opt.label}</span>
+                  <span
+                    className="rounded-full px-1.5 py-0.2 font-mono text-[10px] tabular-nums"
+                    style={{ background: isActive ? "rgba(255,255,255,0.2)" : "#21262d", color: isActive ? "#ffffff" : "#8b949e" }}
+                  >
+                    {opt.value === "all" && referenceCount + certificateCount > 0
+                      ? `${filterCounts.all - referenceCount - certificateCount} + ${referenceCount + certificateCount} ref/cert`
+                      : count}
+                  </span>
+                </button>
+              );
+            })}
+            {referenceCount + certificateCount > 0 && (
+              <span className="text-[10px]" style={{ color: "#6e7681" }}>
+                (reachability buckets below are operation-only — references and certificates are never assigned one)
+              </span>
+            )}
+          </div>
+
       {/* Exposure Filter Chips */}
-      <div className="flex flex-wrap items-center gap-2 mt-2">
-        <span className="font-heading text-[11px] font-medium uppercase tracking-wider text-ink-muted mr-1">
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <span className="mr-1 text-[11px] font-semibold uppercase tracking-widest" style={{ color: "#8b949e" }}>
           Filter Exposure:
         </span>
         {EXPOSURE_FILTER_OPTIONS.map((opt) => {
@@ -265,14 +545,18 @@ export function FindingsTable({
               key={opt.value}
               type="button"
               onClick={() => handleToggleExposureFilter(opt.value)}
-              className={`inline-flex items-center gap-1.5 rounded-sm px-2.5 py-1 font-heading text-xs transition-colors ${
+              className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors"
+              style={
                 isActive
-                  ? "border border-ink bg-surface-2 font-semibold text-ink shadow-xs"
-                  : "border border-line bg-surface text-ink-secondary hover:border-line-strong hover:text-ink"
-              }`}
+                  ? { background: "#3b82f6", borderColor: "#3b82f6", color: "#ffffff" }
+                  : { background: "transparent", borderColor: "#30363d", color: "#c9d1d9" }
+              }
             >
               <span>{opt.label}</span>
-              <span className="rounded-full bg-page/60 px-1.5 py-0.2 font-mono text-[10px] text-ink-muted tabular-nums">
+              <span
+                className="rounded-full px-1.5 py-0.2 font-mono text-[10px] tabular-nums"
+                style={{ background: isActive ? "rgba(255,255,255,0.2)" : "#21262d", color: isActive ? "#ffffff" : "#8b949e" }}
+              >
                 {count}
               </span>
             </button>
@@ -281,28 +565,15 @@ export function FindingsTable({
       </div>
 
       {/* Table */}
-      <div className="overflow-x-auto rounded-sm border border-line bg-surface">
+      <div className="overflow-x-auto rounded-xl border" style={{ borderColor: "#21262d", background: "#0d1117" }}>
         <table className="w-full text-left text-sm">
           <thead>
-            <tr className="border-b border-line bg-surface-2/40">
-              <th className="px-3 py-2 font-heading text-[11px] font-medium uppercase tracking-wider text-ink-muted">
-                Algorithm / Asset
-              </th>
-              <th className="px-3 py-2 font-heading text-[11px] font-medium uppercase tracking-wider text-ink-muted">
-                Quantum Status
-              </th>
-              <th className="px-3 py-2 font-heading text-[11px] font-medium uppercase tracking-wider text-ink-muted">
-                Reachability
-              </th>
-              <th className="px-3 py-2 font-heading text-[11px] font-medium uppercase tracking-wider text-ink-muted">
-                Exposure
-              </th>
-              <th className="px-3 py-2 font-heading text-[11px] font-medium uppercase tracking-wider text-ink-muted">
-                Shelf-life (yrs)
-              </th>
-              <th className="px-3 py-2 font-heading text-[11px] font-medium uppercase tracking-wider text-ink-muted">
-                Blast Radius (days)
-              </th>
+            <tr>
+              {["Algorithm / Asset", "Quantum Status", "Reachability", "Exposure", "Shelf-life (yrs)", "Blast Radius (days)"].map((h) => (
+                <th key={h} className="border-b px-3 py-2 text-[11px] font-medium uppercase tracking-wide" style={{ borderColor: "#21262d", color: "#6e7681" }}>
+                  {h}
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
@@ -318,12 +589,16 @@ export function FindingsTable({
                 <tr
                   key={f.id}
                   onClick={() => onSelect(f)}
-                  className={`animate-row-in cursor-pointer border-b border-line last:border-b-0 ${
-                    selected ? "bg-surface-2 font-semibold" : "hover:bg-surface-2/60 font-normal"
+                  className={`animate-row-in cursor-pointer border-b last:border-b-0 ${
+                    selected ? "font-semibold" : "hover:bg-[#161b22] font-normal"
                   } ${isInert ? "opacity-60 hover:opacity-100 transition-opacity" : ""}`}
-                  style={{ animationDelay: `${Math.min(i * STAGGER_STEP_MS, MAX_STAGGER_MS)}ms` }}
+                  style={{
+                    borderColor: "#21262d",
+                    background: selected ? "#1d2d44" : "transparent",
+                    animationDelay: `${Math.min(i * STAGGER_STEP_MS, MAX_STAGGER_MS)}ms`,
+                  }}
                 >
-                  <td className="px-3 py-2 font-heading text-sm font-semibold text-ink">
+                  <td className="px-3 py-2 text-sm font-semibold text-white">
                     <span className="inline-flex items-center gap-2">
                       {displayName(f)}
                       {isReference && (
@@ -437,6 +712,8 @@ export function FindingsTable({
           entry={shelfLifeModal.entry}
           onClose={() => setShelfLifeModal(undefined)}
         />
+      )}
+        </div>
       )}
     </div>
   );

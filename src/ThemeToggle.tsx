@@ -2,9 +2,9 @@ import { useState } from "react";
 import { Sun, Moon } from "lucide-react";
 import { applyTheme, getStoredTheme, type Theme } from "./theme";
 
-/** The one light/dark toggle component in the app -- used identically on
- * the entry screen and inside the main shell, per the design brief's
- * requirement that there never be two separate implementations. */
+/** The one light/dark toggle component in the app -- a sun/pill/moon
+ * switch (no text label), used identically on the entry screen and
+ * inside the main shell's top bar. */
 export function ThemeToggle() {
   const [theme, setTheme] = useState<Theme>(() => getStoredTheme());
 
@@ -14,18 +14,27 @@ export function ThemeToggle() {
     setTheme(next);
   }
 
-  const Icon = theme === "dark" ? Sun : Moon;
+  const isDark = theme === "dark";
 
   return (
-    <button
-      type="button"
-      onClick={toggle}
-      aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
-      title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
-      className="flex items-center gap-1.5 rounded-sm border border-line px-2.5 py-1.5 font-heading text-[11px] font-medium uppercase tracking-wide text-ink-secondary hover:border-line-strong hover:text-ink transition-colors"
-    >
-      <Icon className="h-3.5 w-3.5 shrink-0" strokeWidth={2} aria-hidden="true" />
-      <span>{theme === "dark" ? "Light" : "Dark"}</span>
-    </button>
+    <div className="flex items-center gap-1.5">
+      <Sun className="h-3.5 w-3.5 shrink-0 text-amber-400" strokeWidth={2} aria-hidden="true" />
+      <button
+        type="button"
+        onClick={toggle}
+        role="switch"
+        aria-checked={isDark}
+        aria-label={`Switch to ${isDark ? "light" : "dark"} mode`}
+        title={`Switch to ${isDark ? "light" : "dark"} mode`}
+        className="relative inline-flex h-5 w-9 shrink-0 items-center rounded-full bg-blue-600 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
+      >
+        <span
+          className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${
+            isDark ? "translate-x-[18px]" : "translate-x-1"
+          }`}
+        />
+      </button>
+      <Moon className="h-3.5 w-3.5 shrink-0 text-ink-muted" strokeWidth={2} aria-hidden="true" />
+    </div>
   );
 }

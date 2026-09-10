@@ -2,15 +2,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import ForceGraph, { type ForceGraphMethods, type NodeObject } from "react-force-graph-2d";
 import { displayName, type DataChainType, type Finding, type QuantumStatus } from "./cbom/types";
 import { DetailPanel } from "./DetailPanel";
-import { quantumStatusColor, useThemeColors } from "./useThemeColors";
+import { getNodeColor, FILTERABLE_STATUSES } from "./graphColors";
 import { buildCallGraphEdges, buildDataChainEdges } from "./graphEdges";
-
-const LEGEND: { status: string; label: string; dotClass: string }[] = [
-  { status: "broken-by-shor", label: "Broken by Shor", dotClass: "bg-status-critical" },
-  { status: "weakened-by-grover", label: "Weakened by Grover", dotClass: "bg-status-warning" },
-  { status: "quantum-safe", label: "Quantum-safe", dotClass: "bg-status-good" },
-  { status: "broken-classically", label: "Broken classically", dotClass: "bg-status-neutral-fg" },
-];
+import { ResizableDivider } from "./components/ResizableDivider";
+import { GraphLegend } from "./components/GraphLegend";
+import { ZoomControls } from "./components/ZoomControls";
+import { GraphSearchFilterBar } from "./components/GraphSearchFilterBar";
+import { GraphMinimap } from "./components/GraphMinimap";
 
 const MIN_RADIUS = 4;
 const MAX_RADIUS = 22;
@@ -56,26 +54,36 @@ function radiusFor(evidenceCount: number): number {
 /**
  * The original force-directed scatter layout (pre-tree-layout-experiment) —
  * physics, node positions, and "cluster by status" behavior are untouched.
- * The ONLY change from that original is edge visibility: real call-graph
- * edges now render as a solid, higher-contrast charcoal band instead of a
- * faded hairline (see `linkColor`/`linkWidth` below) — everything else in
- * this file is byte-for-byte the same logic as before.
+ * Node fill color, the legend, zoom controls, search/filter, and the detail
+ * panel wiring are shared with Tree mode via graphColors.ts and the small
+ * components in ./components/.
  */
 export function ClusterGraph({
   findings,
   selectedId,
   onSelect,
+  detailWidth = 340,
+  onResizeDetail,
+  searchTerm,
+  onSearchChange,
+  activeFilters,
+  onToggleFilter,
 }: {
   findings: Finding[];
   selectedId: string | undefined;
   onSelect: (id: string | undefined) => void;
+  detailWidth?: number;
+  onResizeDetail?: (delta: number) => void;
+  searchTerm: string;
+  onSearchChange: (term: string) => void;
+  activeFilters: string[];
+  onToggleFilter: (status: string) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const fgRef = useRef<ForceGraphMethods<NodeObject<GraphNode>> | undefined>(undefined);
   const [size, setSize] = useState({ width: 800, height: 600 });
   const [hoveredId, setHoveredId] = useState<string | undefined>(undefined);
   const [clustered, setClustered] = useState(false);
-  const colors = useThemeColors();
 
   useEffect(() => {
     const el = containerRef.current;
@@ -140,14 +148,40 @@ export function ClusterGraph({
 
   const selectedFinding = findings.find((f) => f.id === selectedId);
 
+  const cleanSearch = searchTerm.trim().toLowerCase();
+
+  function nodeMatchesFilter(status: QuantumStatus | undefined): boolean {
+    if (status === undefined || !FILTERABLE_STATUSES.includes(status)) return true;
+    return activeFilters.includes(status);
+  }
+
+  function handleZoomIn() {
+    const fg = fgRef.current;
+    if (!fg) return;
+    fg.zoom(fg.zoom() * 1.4, 300);
+  }
+  function handleZoomOut() {
+    const fg = fgRef.current;
+    if (!fg) return;
+    fg.zoom(fg.zoom() / 1.4, 300);
+  }
+  function handleFitAll() {
+    fgRef.current?.zoomToFit(400, 40);
+  }
+  function handleMinimapNavigate(x: number, y: number) {
+    fgRef.current?.centerAt(x, y, 400);
+  }
+
+  const minimapNodes = graphData.nodes
+    .filter((n) => n.x !== undefined && n.y !== undefined)
+    .map((n) => ({ x: n.x as number, y: n.y as number, color: getNodeColor(n.quantumStatus) }));
+
   return (
     <div className="flex h-full flex-col gap-3">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line pb-2.5">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-2.5" style={{ borderColor: "#21262d" }}>
         <div>
-          <h2 className="font-heading text-[26px] font-medium text-ink tracking-tight">
-            Asset Relationships
-          </h2>
-          <p className="mt-0.5 font-sans text-sm text-ink-muted leading-relaxed">
+          <h2 className="text-xl font-bold text-white">Asset Relationships</h2>
+          <p className="mt-0.5 max-w-3xl text-sm leading-relaxed" style={{ color: "#8b949e" }}>
             Solid edges are real call-graph edges between findings whose enclosing functions directly call
             each other (Hash Patch's reachability call graph). Dashed edges are same-function data chains
             (Java only) — one finding's output literally feeds another's input within the same method. A
@@ -159,34 +193,36 @@ export function ClusterGraph({
           type="button"
           onClick={() => setClustered((c) => !c)}
           aria-pressed={clustered}
-          className={`rounded-sm border px-3 py-1.5 font-heading text-xs font-semibold uppercase tracking-wider transition-colors ${
-            clustered
-              ? "border-ink bg-surface-2 text-ink"
-              : "border-line text-ink-secondary hover:border-line-strong hover:text-ink"
-          }`}
+          className="rounded-lg border px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-white transition-colors hover:bg-white/5"
+          style={{ borderColor: clustered ? "#3b82f6" : "#30363d", color: clustered ? "#3b82f6" : "#c9d1d9" }}
         >
           {clustered ? "Clustered by status" : "Cluster by status"}
         </button>
       </div>
 
+      <GraphSearchFilterBar
+        searchTerm={searchTerm}
+        onSearchChange={onSearchChange}
+        activeFilters={activeFilters}
+        onToggleFilter={onToggleFilter}
+      />
+
       <div className="flex min-h-0 flex-1 gap-4">
-        <div ref={containerRef} className="relative min-w-0 flex-1 overflow-hidden rounded-sm border border-line">
+        <div ref={containerRef} className="relative min-w-0 flex-1 overflow-hidden rounded-xl border" style={{ borderColor: "#21262d" }}>
           <ForceGraph
             ref={fgRef}
             width={size.width}
             height={size.height}
             graphData={graphData}
-            backgroundColor={colors["--page"]}
+            backgroundColor="#0d1117"
             nodeId="id"
             nodeLabel={() => ""}
             linkColor={(link) => {
               const gl = link as unknown as GraphLink;
               if (gl.kind === "dataChain") {
-                return gl.chainType === "key_material"
-                  ? (colors["--ink-muted"] ?? "#9ca3af")
-                  : colors["--status-warning"];
+                return gl.chainType === "key_material" ? "#6e7681" : "#f59e0b";
               }
-              return colors["--ink-secondary"];
+              return "#8b949e";
             }}
             linkWidth={(link) => {
               const gl = link as unknown as GraphLink;
@@ -209,23 +245,49 @@ export function ClusterGraph({
               const n = node as unknown as GraphNode;
               const isSelected = n.id === selectedId;
               const isHovered = n.id === hoveredId;
+
+              const passesFilter = nodeMatchesFilter(n.quantumStatus);
+              const matchesSearch = cleanSearch === "" || n.name.toLowerCase().includes(cleanSearch);
+              const isSearchActive = cleanSearch !== "";
+
+              let opacity = 1;
+              if (!passesFilter) opacity = 0.06;
+              else if (isSearchActive && !matchesSearch) opacity = 0.2;
+
+              ctx.save();
+              ctx.globalAlpha = opacity;
+
+              if (passesFilter && isSearchActive && matchesSearch) {
+                ctx.shadowColor = "#ffffff";
+                ctx.shadowBlur = 10;
+              }
+
               ctx.beginPath();
               ctx.arc(node.x ?? 0, node.y ?? 0, n.radius, 0, 2 * Math.PI);
-              ctx.fillStyle = quantumStatusColor(colors, n.quantumStatus);
+              ctx.fillStyle = getNodeColor(n.quantumStatus);
               ctx.fill();
+
+              ctx.shadowBlur = 0;
+
               if (isSelected || isHovered) {
                 ctx.lineWidth = 2 / globalScale;
-                ctx.strokeStyle = colors["--ink"];
+                ctx.strokeStyle = "#f0f6fc";
+                ctx.stroke();
+              } else if (passesFilter && isSearchActive && matchesSearch) {
+                ctx.lineWidth = 2 / globalScale;
+                ctx.strokeStyle = "#ffffff";
                 ctx.stroke();
               }
+
               if (globalScale > LABEL_ZOOM_THRESHOLD || isHovered || isSelected) {
                 const fontSize = 12 / globalScale;
                 ctx.font = `${fontSize}px "Inter", sans-serif`;
                 ctx.textAlign = "center";
                 ctx.textBaseline = "top";
-                ctx.fillStyle = colors["--ink"];
+                ctx.fillStyle = "#f0f6fc";
                 ctx.fillText(n.name, node.x ?? 0, (node.y ?? 0) + n.radius + 2 / globalScale);
               }
+              ctx.restore();
             }}
             nodePointerAreaPaint={(node, color, ctx) => {
               const n = node as unknown as GraphNode;
@@ -236,42 +298,18 @@ export function ClusterGraph({
             }}
           />
 
-          <div className="pointer-events-none absolute bottom-3 left-3 flex flex-col gap-1 rounded-sm border border-line bg-surface/90 px-2.5 py-2">
-            {LEGEND.map((item) => (
-              <div key={item.status} className="flex items-center gap-1.5">
-                <span className={`h-2 w-2 rounded-full ${item.dotClass}`} aria-hidden="true" />
-                <span className="text-[11px] uppercase tracking-wide text-ink-secondary">{item.label}</span>
-              </div>
-            ))}
-            <div className="mt-1 flex flex-col gap-1 border-t border-line pt-1">
-              <div className="flex items-center gap-1.5">
-                <span className="h-0 w-3 border-t-2 border-ink-secondary" aria-hidden="true" />
-                <span className="text-[11px] uppercase tracking-wide text-ink-secondary">Cross-function call</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span
-                  className="h-0 w-3 border-t-2 border-dashed"
-                  style={{ borderColor: colors["--status-warning"] }}
-                  aria-hidden="true"
-                />
-                <span className="text-[11px] uppercase tracking-wide text-ink-secondary">Ciphertext chain</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span
-                  className="h-0 w-3 border-t-[1.5px] border-dotted"
-                  style={{ borderColor: colors["--ink-muted"] ?? "#9ca3af" }}
-                  aria-hidden="true"
-                />
-                <span className="text-[11px] uppercase tracking-wide text-ink-secondary">Key-material binding</span>
-              </div>
-            </div>
-          </div>
+          <ZoomControls onZoomIn={handleZoomIn} onZoomOut={handleZoomOut} onFitAll={handleFitAll} />
+          <GraphMinimap nodes={minimapNodes} onNavigate={handleMinimapNavigate} />
+          <GraphLegend />
         </div>
 
         {selectedFinding && (
-          <div className="w-[340px] shrink-0 overflow-y-auto">
-            <DetailPanel finding={selectedFinding} onClose={() => onSelect(undefined)} />
-          </div>
+          <>
+            {onResizeDetail && <ResizableDivider onResize={onResizeDetail} />}
+            <div className="shrink-0 overflow-hidden" style={{ width: detailWidth, minWidth: 320, transition: "width 200ms ease" }}>
+              <DetailPanel finding={selectedFinding} onClose={() => onSelect(undefined)} />
+            </div>
+          </>
         )}
       </div>
     </div>

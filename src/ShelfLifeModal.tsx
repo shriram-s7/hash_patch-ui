@@ -148,11 +148,11 @@ export function ShelfLifeModal({
           </div>
         )}
 
-        <div className="rounded-sm border border-dashed border-line-strong bg-page p-3">
-          <h3 className="mb-1 font-heading text-[10px] font-medium uppercase tracking-wider text-ink-muted">
+        <div className="p-3 rounded-lg bg-[#1a1200] border-l-4 border-[#f59e0b] text-[#fbbf24]">
+          <h3 className="mb-1 text-[10px] font-semibold uppercase tracking-wider">
             Honesty disclaimer
           </h3>
-          <p className="text-[11px] leading-relaxed text-ink-muted">
+          <p className="text-[11px] leading-relaxed">
             This figure is a reasonable-effort, conservative default from Hash Patch's demonstration
             ontology (<span className="font-mono">ontology/data_sensitivity.yaml</span>) — it is NOT
             derived from a legal database, NOT verified against the DPDP Act 2023 or any other statute,
