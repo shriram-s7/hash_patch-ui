@@ -331,13 +331,50 @@ body {
   animation: drawer-in 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
+/* Blast Radius: a one-shot amber ring pulse on the shockwave section when
+   scrolled to via the asset list's "Shockwave" jump button. */
+@keyframes shockwavePulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4);
+  }
+  70% {
+    box-shadow: 0 0 0 12px rgba(245, 158, 11, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0);
+  }
+}
+
+.shockwave-highlight {
+  animation: shockwavePulse 2s ease-out;
+}
+
+/* Ask Patch AI: a gentle glowing-border pulse on the question box until the
+   user's first focus, so a first-time visitor's eye lands on "type here"
+   without needing to read the label first. */
+@keyframes askInputGlow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(59, 130, 246, 0);
+  }
+}
+
+.animate-ask-input-glow {
+  animation: askInputGlow 2s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-row-in,
   .animate-signal-pulse,
   .animate-mode-in,
   .animate-overflow-pulse,
   .animate-hash-flash,
-  .animate-drawer-in {
+  .animate-drawer-in,
+  .shockwave-highlight,
+  .animate-ask-input-glow {
     animation: none;
   }
 }

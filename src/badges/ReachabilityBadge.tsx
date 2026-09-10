@@ -17,7 +17,7 @@ export function ReachabilityBadge({ reachability, status, mixed }: ReachabilityB
   if (mixed) {
     return (
       <span
-        className="inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 font-heading text-[10px] uppercase tracking-wider bg-status-warning-fill/15 text-status-warning-text border border-status-warning-fill/40 font-semibold"
+        className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-sm px-2 py-0.5 font-heading text-[10px] uppercase tracking-wider bg-status-warning-fill/15 text-status-warning-text border border-status-warning-fill/40 font-semibold"
         title="Asset merges both live and dead/unreachable call sites"
       >
         <span className="relative flex h-1.5 w-1.5 shrink-0" aria-hidden="true">
@@ -128,7 +128,7 @@ export function ReachabilityBadge({ reachability, status, mixed }: ReachabilityB
 
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 font-heading text-[10px] uppercase tracking-wider ${badgeClasses}`}
+      className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-sm px-2 py-0.5 font-heading text-[10px] uppercase tracking-wider ${badgeClasses}`}
     >
       {reachability === "live-external" ? (
         <span className="relative flex h-1.5 w-1.5 shrink-0" aria-hidden="true">

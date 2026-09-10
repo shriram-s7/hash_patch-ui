@@ -1,10 +1,25 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  Sparkles,
+  MessageCircle,
+  Wrench,
+  ClipboardList,
+  BarChart3,
+  Paperclip,
+  Send,
+  Monitor,
+  Lightbulb,
+  RefreshCw,
+  MoreHorizontal,
+  Lock,
+} from "lucide-react";
 import { SERVICE_BASE_URL, type OllamaProvisionState } from "./serviceUrl";
 import { MarkdownAnswerRenderer, type AnswerHighlight } from "./MarkdownAnswerRenderer";
 
 interface ChatTurn {
   id: number;
   question: string;
+  askedAt: number;
   answer?: string;
   /** undefined while the request is in flight. */
   grounded?: boolean;
@@ -41,6 +56,40 @@ interface SavedAskSession {
   nextId: number;
   input: string;
 }
+
+function relativeTime(ms: number): string {
+  const diffSec = Math.max(0, Math.round((Date.now() - ms) / 1000));
+  if (diffSec < 60) return "just now";
+  const diffMin = Math.round(diffSec / 60);
+  if (diffMin < 60) return `${diffMin} min ago`;
+  const diffHr = Math.round(diffMin / 60);
+  if (diffHr < 24) return `${diffHr} hour${diffHr === 1 ? "" : "s"} ago`;
+  const diffDay = Math.round(diffHr / 24);
+  return `${diffDay} day${diffDay === 1 ? "" : "s"} ago`;
+}
+
+const TYPING_PLACEHOLDER_EXAMPLES = [
+  "Ask me anything about your scan...",
+  "Why is RSA broken by Shor's algorithm?",
+  "How do I fix this in my code?",
+  "Create a migration plan for this repo...",
+  "Explain the blast radius of this finding...",
+];
+
+const QUICK_PROMPTS = [
+  "Why is RSA broken by Shor?",
+  "How do I fix this in my code?",
+  "Create a migration plan",
+  "Explain blast radius",
+];
+
+const TRY_EXAMPLES = [
+  "Why is RSA flagged as broken by Shor's algorithm?",
+  "Show me how to fix this finding",
+  "Create a migration plan for this repository",
+  "Explain the shelf life of SHA-256",
+  "What is the blast radius of replacing RSA here?",
+];
 
 const STORAGE_PREFIX = "hash_patch_ask_session_";
 const memorySessionStore = new Map<string, SavedAskSession>();
@@ -203,15 +252,100 @@ export function AskView({ rawCbomText, scanId, plan }: AskViewProps) {
     }
   }, [currentScanKey]);
 
+  const noScan = rawCbomText === undefined && scanId === undefined;
+
+  // Typewriter placeholder + a highlighted box, purely to point a
+  // first-time user at "this is where you type" — stops for good the moment
+  // they focus the box or type anything, so it never fights a real answer.
+  const [inputFocused, setInputFocused] = useState(false);
+  const [hasEverFocused, setHasEverFocused] = useState(false);
+  const [typedPlaceholder, setTypedPlaceholder] = useState("");
+  const [cursorOn, setCursorOn] = useState(true);
+
+  useEffect(() => {
+    if (noScan || hasEverFocused || input.trim().length > 0) return;
+    let cancelled = false;
+    let timeoutId: number;
+    let exampleIndex = 0;
+    let charIndex = 0;
+    let deleting = false;
+
+    function tick() {
+      if (cancelled) return;
+      const current = TYPING_PLACEHOLDER_EXAMPLES[exampleIndex]!;
+      if (!deleting) {
+        charIndex++;
+        setTypedPlaceholder(current.slice(0, charIndex));
+        if (charIndex === current.length) {
+          deleting = true;
+          timeoutId = window.setTimeout(tick, 1500);
+          return;
+        }
+        timeoutId = window.setTimeout(tick, 45);
+      } else {
+        charIndex--;
+        setTypedPlaceholder(current.slice(0, charIndex));
+        if (charIndex === 0) {
+          deleting = false;
+          exampleIndex = (exampleIndex + 1) % TYPING_PLACEHOLDER_EXAMPLES.length;
+          timeoutId = window.setTimeout(tick, 350);
+          return;
+        }
+        timeoutId = window.setTimeout(tick, 25);
+      }
+    }
+    timeoutId = window.setTimeout(tick, 400);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+    };
+  }, [noScan, hasEverFocused, input]);
+
+  useEffect(() => {
+    if (noScan || hasEverFocused || input.trim().length > 0) return;
+    const blink = window.setInterval(() => setCursorOn((c) => !c), 500);
+    return () => window.clearInterval(blink);
+  }, [noScan, hasEverFocused, input]);
+
+  const showTypingPlaceholder = !noScan && !hasEverFocused && input.trim().length === 0;
+  const livePlaceholder = noScan
+    ? "No scan loaded yet"
+    : showTypingPlaceholder
+      ? typedPlaceholder + (cursorOn ? "▌" : "")
+      : "Ask me anything about your scan...";
+
   const canAsk = (scanId !== undefined || rawCbomText !== undefined) && input.trim().length > 0 && !pending;
 
-  async function handleAsk() {
-    const question = input.trim();
-    if (!question || (scanId === undefined && rawCbomText === undefined)) return;
+  const turnRefs = useRef<Map<number, HTMLDivElement>>(new Map());
+  const [showChat, setShowChat] = useState(turns.length > 0);
+
+  function handleClearAll() {
+    const newConvId = generateConversationId();
+    conversationIdRef.current = newConvId;
+    nextId.current = 0;
+    setTurns([]);
+    setInput("");
+    setShowChat(false);
+    saveSavedSession({ scanKey: currentScanKey, conversationId: newConvId, turns: [], nextId: 0, input: "" });
+  }
+
+  function jumpToTurn(id: number) {
+    setShowChat(true);
+    requestAnimationFrame(() => {
+      turnRefs.current.get(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
+
+  const recentTurns = useMemo(() => [...turns].reverse().slice(0, 4), [turns]);
+
+  async function handleAsk(questionOverride?: string) {
+    const question = (questionOverride ?? input).trim();
+    if (!question || pending || (scanId === undefined && rawCbomText === undefined)) return;
 
     const id = nextId.current++;
-    setTurns((prev) => [...prev, { id, question }]);
+    setTurns((prev) => [...prev, { id, question, askedAt: Date.now() }]);
     setInput("");
+    setShowChat(true);
     setPending(true);
 
     const convId = conversationIdRef.current;
@@ -316,179 +450,415 @@ export function AskView({ rawCbomText, scanId, plan }: AskViewProps) {
     }
   }
 
-  return (
-    <div className="flex h-full flex-col p-4 sm:p-6">
-      <div className="border-b border-line pb-3 mb-4">
-        <h2 className="font-heading text-[22px] font-medium text-ink tracking-tight">Ask about this scan</h2>
-        <p className="mt-1 font-sans text-sm text-ink-muted leading-relaxed max-w-2xl">
-          Answers are drawn ONLY from this scan's own data (a local Ollama model, strictly
-          limited to retrieved CBOM context — never its own knowledge of cryptography or
-          compliance). A question with no grounded answer gets an honest decline, not a guess.
-        </p>
-        <div className="mt-2 flex items-center gap-1.5 font-sans text-xs text-ink-muted">
-          {aiSetup?.stage === "error" ? (
-            <>
-              <span className="h-1.5 w-1.5 rounded-full bg-status-critical" aria-hidden="true" />
-              <span>
-                Local AI setup failed{aiSetup.message ? ` — ${aiSetup.message}.` : "."} Answers fall
-                back to verified scan evidence. All other features are unaffected.
-              </span>
-            </>
-          ) : aiSetup?.stage === "importing" ? (
-            <>
-              <span className="h-1.5 w-1.5 rounded-full bg-status-warning animate-pulse" aria-hidden="true" />
-              <span>
-                Importing local model <span className="font-mono text-ink">llama3.2:3b</span> from offline package…
-                You can keep using Hash Patch meanwhile (questions use verified scan evidence).
-              </span>
-            </>
-          ) : aiSetup?.stage === "warming" ? (
-            <>
-              <span className="h-1.5 w-1.5 rounded-full bg-status-warning animate-pulse" aria-hidden="true" />
-              <span>
-                Initializing local AI model into memory (<span className="font-mono text-ink">llama3.2:3b</span>)…
-                Questions asked now use verified scan evidence.
-              </span>
-            </>
-          ) : aiSetup?.stage === "downloading" ? (
-            <>
-              <span className="h-1.5 w-1.5 rounded-full bg-status-warning" aria-hidden="true" />
-              <span>
-                Setting up local AI model <span className="font-mono text-ink">llama3.2:3b</span> —{" "}
-                {aiSetup.percent != null
-                  ? `${aiSetup.percent}% downloaded (one-time, ~2 GB)`
-                  : "downloading… (one-time, ~2 GB)"}
-                . You can keep using Hash Patch meanwhile (questions use verified scan evidence).
-              </span>
-            </>
-          ) : aiSetup?.stage === "starting" || aiSetup?.stage === "verifying" ? (
-            <>
-              <span className="h-1.5 w-1.5 rounded-full bg-status-warning" aria-hidden="true" />
-              <span>
-                Setting up local AI model <span className="font-mono text-ink">llama3.2:3b</span> —{" "}
-                {aiSetup.stage === "verifying" ? "verifying download…" : "starting local runtime…"}
-                . Questions fall back to verified scan evidence.
-              </span>
-            </>
-          ) : (
-            <>
-              <span
-                className={`h-1.5 w-1.5 rounded-full ${
-                  aiStatus === "ready" || aiSetup?.stage === "ready"
-                    ? "bg-status-good"
-                    : aiStatus === "missing-model" || aiStatus === "unavailable"
-                      ? "bg-status-warning"
-                      : "bg-ink-muted"
-                }`}
-                aria-hidden="true"
-              />
-              {aiSetup?.stage === "ready" || aiStatus === "ready" ? (
-                <span>Local model <span className="font-mono text-ink">llama3.2:3b</span> is available.</span>
-              ) : aiStatus === "checking" ? (
-                <span>Checking for local AI model…</span>
-              ) : aiStatus === "missing-model" ? (
-                <span>
-                  Ollama is running but the <span className="font-mono text-ink">llama3.2:3b</span> model is
-                  not installed — answers fall back to verified scan evidence.
-                </span>
-              ) : (
-                <span>
-                  Local AI runtime not yet ready — answers fall back to verified scan evidence (all other
-                  features are unaffected).
-                </span>
-              )}
-            </>
-          )}
-        </div>
-      </div>
+  // Real-time local-AI runtime status, unchanged logic — just rendered as a
+  // {dot, text} pair so it can be dropped into the new RAM notice bar.
+  let statusDot = "#6b7280";
+  let statusText: React.ReactNode;
+  if (aiSetup?.stage === "error") {
+    statusDot = "#ef4444";
+    statusText = (
+      <>Local AI setup failed{aiSetup.message ? ` — ${aiSetup.message}.` : "."} Answers fall back to verified scan evidence.</>
+    );
+  } else if (aiSetup?.stage === "importing") {
+    statusDot = "#f59e0b";
+    statusText = <>Importing local model <span className="font-mono">llama3.2:3b</span> from offline package…</>;
+  } else if (aiSetup?.stage === "warming") {
+    statusDot = "#f59e0b";
+    statusText = <>Initializing local AI model into memory (<span className="font-mono">llama3.2:3b</span>)…</>;
+  } else if (aiSetup?.stage === "downloading") {
+    statusDot = "#f59e0b";
+    statusText = (
+      <>
+        Setting up local model <span className="font-mono">llama3.2:3b</span> —{" "}
+        {aiSetup.percent != null ? `${aiSetup.percent}% downloaded` : "downloading…"} (one-time, ~2 GB).
+      </>
+    );
+  } else if (aiSetup?.stage === "starting" || aiSetup?.stage === "verifying") {
+    statusDot = "#f59e0b";
+    statusText = <>Setting up local model — {aiSetup.stage === "verifying" ? "verifying download…" : "starting local runtime…"}</>;
+  } else if (aiSetup?.stage === "ready" || aiStatus === "ready") {
+    statusDot = "#22c55e";
+    statusText = <>Local model <span className="font-mono">llama3.2:3b</span> is available.</>;
+  } else if (aiStatus === "checking") {
+    statusText = <>Checking for local AI model…</>;
+  } else if (aiStatus === "missing-model") {
+    statusDot = "#f59e0b";
+    statusText = <>Ollama is running but <span className="font-mono">llama3.2:3b</span> is not installed — answers fall back to verified scan evidence.</>;
+  } else {
+    statusDot = "#f59e0b";
+    statusText = <>Local AI runtime not yet ready — answers fall back to verified scan evidence.</>;
+  }
 
-      <div className="flex-1 overflow-y-auto space-y-3 pr-1">
-        {turns.length === 0 && (
-          <p className="font-mono text-xs text-ink-muted">
-            No questions asked yet. Try: "Why is RSA flagged as broken by Shor?", "What's the
-            most urgent finding?", or "What CVE does this correspond to?"
-          </p>
-        )}
-        {turns.map((t) => (
-          <div key={t.id} className="space-y-1.5">
-            <div className="flex justify-end">
-              <div className="max-w-[85%] rounded-sm border border-line bg-surface-2 px-3 py-1.5 font-sans text-sm text-ink">
-                {t.question}
+  return (
+    <div className="h-full overflow-y-auto" style={{ background: "#0d1117" }}>
+      <div className="mx-auto max-w-[1400px] px-6 py-6">
+        {/* Page header */}
+        <div
+          className="flex items-center gap-4 rounded-xl px-6 py-5"
+          style={{ background: "linear-gradient(135deg, #2e1065 0%, #161b22 60%)" }}
+        >
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl" style={{ background: "#8b5cf6" }}>
+            <Sparkles className="h-6 w-6 shrink-0 text-white" strokeWidth={2} aria-hidden="true" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-white">Patch AI</h1>
+            <p className="text-sm" style={{ color: "#9ca3af" }}>
+              Your AI assistant for cryptographic security, migration planning, and code insights.
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-[1fr_320px]">
+          {/* LEFT / CENTER COLUMN */}
+          <div className="min-w-0 space-y-4">
+            {!showChat && (
+              <div className="rounded-xl border p-6" style={{ background: "#1a1f35", borderColor: "#21262d" }}>
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div className="flex items-center gap-4">
+                    <PatchAIBot size={120} />
+                    <div>
+                      <h2 className="text-xl font-bold">
+                        <span className="text-white">Hi, I&apos;m </span>
+                        <span style={{ color: "#3b82f6" }}>Patch AI</span>
+                      </h2>
+                      <p className="mt-1 max-w-sm text-sm" style={{ color: "#9ca3af" }}>
+                        Ask questions, get clear explanations, and plan your migration to post-quantum security — all
+                        from your codebase.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="text-sm italic leading-snug" style={{ color: "#9ca3af" }}>
+                      "Same code.
+                      <br />
+                      Safer future."
+                    </p>
+                    <div className="ml-auto mt-1 h-0.5 w-14" style={{ background: "#22c55e" }} />
+                  </div>
+                </div>
+
+                <div className="mt-5 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+                  {[
+                    { icon: MessageCircle, label: "Explain findings", sub: "in simple terms" },
+                    { icon: Wrench, label: "Suggest fixes", sub: "with code examples" },
+                    { icon: ClipboardList, label: "Plan migration", sub: "step-by-step" },
+                    { icon: BarChart3, label: "Understand impact", sub: "and blast radius" },
+                  ].map(({ icon: Icon, label, sub }) => (
+                    <div key={label} className="rounded-lg border px-3 py-3" style={{ borderColor: "#30363d", background: "#0d1117" }}>
+                      <Icon className="h-4 w-4 shrink-0" style={{ color: "#a78bfa" }} strokeWidth={2} aria-hidden="true" />
+                      <div className="mt-1.5 text-xs font-semibold text-white">{label}</div>
+                      <div className="text-[11px]" style={{ color: "#8b949e" }}>{sub}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Chat thread */}
+            {showChat && (
+              <div className="rounded-xl border" style={{ borderColor: "#21262d", background: "#161b22" }}>
+                <div className="max-h-[480px] space-y-4 overflow-y-auto p-4">
+                  {turns.map((t) => (
+                    <div
+                      key={t.id}
+                      ref={(el) => {
+                        if (el) turnRefs.current.set(t.id, el);
+                        else turnRefs.current.delete(t.id);
+                      }}
+                      className="space-y-1.5"
+                    >
+                      <div className="flex justify-end">
+                        <div className="max-w-[85%] rounded-xl px-3.5 py-2 text-sm text-white" style={{ background: "#3b82f6" }}>
+                          {t.question}
+                        </div>
+                      </div>
+                      <div className="flex items-start justify-start gap-2">
+                        <PatchAIBot size={28} />
+                        <div className="max-w-[85%] space-y-1.5">
+                          {t.answer === undefined && t.error === undefined && (
+                            <div className="rounded-xl px-3.5 py-2 text-xs" style={{ background: "#0d1117", color: "#8b949e" }}>
+                              {aiSetup?.stage === "ready" || aiStatus === "ready"
+                                ? !hasQueriedLlm
+                                  ? "Thinking… (first local model query may take longer while model initializes in memory)"
+                                  : "Thinking… (local model call, usually a few seconds)"
+                                : "Thinking… (consulting verified scan evidence)"}
+                            </div>
+                          )}
+                          {t.error !== undefined && (
+                            <div className="rounded-xl px-3.5 py-2 text-xs" style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444" }}>
+                              {t.error}
+                            </div>
+                          )}
+                          {t.answer !== undefined && (
+                            <>
+                              <div className="rounded-xl px-3.5 py-2.5 text-sm text-white" style={{ background: "#0d1117" }}>
+                                <MarkdownAnswerRenderer content={t.answer} highlights={t.highlights} />
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+                                  style={
+                                    t.category === "conversational"
+                                      ? { background: "#21262d", color: "#8b949e" }
+                                      : t.grounded
+                                        ? { background: "rgba(34,197,94,0.15)", color: "#22c55e" }
+                                        : { background: "rgba(245,158,11,0.15)", color: "#f59e0b" }
+                                  }
+                                >
+                                  <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                                  {t.category === "conversational"
+                                    ? "Conversational"
+                                    : t.grounded
+                                      ? `Grounded · ${t.category}`
+                                      : "Declined — not in this scan"}
+                                </span>
+                                {t.sources && t.sources.length > 0 && (
+                                  <span className="text-[11px]" style={{ color: "#6e7681" }}>
+                                    {t.sources.length} source{t.sources.length === 1 ? "" : "s"}
+                                  </span>
+                                )}
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Input section */}
+            <div
+              className={`rounded-xl border p-4 transition-all duration-200 ${!noScan && !hasEverFocused ? "animate-ask-input-glow" : ""}`}
+              style={{
+                background: "#161b22",
+                borderColor: inputFocused ? "#3b82f6" : !hasEverFocused && !noScan ? "#3b82f6" : "#21262d",
+                boxShadow: inputFocused ? "0 0 0 3px rgba(59,130,246,0.18)" : undefined,
+              }}
+            >
+              <div className="relative">
+                <textarea
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onFocus={() => {
+                    setInputFocused(true);
+                    setHasEverFocused(true);
+                  }}
+                  onBlur={() => setInputFocused(false)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      if (canAsk) void handleAsk();
+                    }
+                  }}
+                  placeholder={livePlaceholder}
+                  disabled={noScan}
+                  rows={3}
+                  className="w-full resize-none bg-transparent pb-8 text-sm text-white placeholder:italic placeholder:text-[#8b949e] focus:outline-none disabled:opacity-50"
+                  style={{ minHeight: 80 }}
+                />
+                <div className="absolute bottom-0 right-0 flex items-center gap-2">
+                  <button
+                    type="button"
+                    title="Attachments are not supported in Ask Patch AI"
+                    disabled
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md opacity-40"
+                    style={{ color: "#8b949e" }}
+                  >
+                    <Paperclip className="h-4 w-4 shrink-0" strokeWidth={2} aria-hidden="true" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleAsk()}
+                    disabled={!canAsk}
+                    title="Send"
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-white transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
+                    style={{ background: "#3b82f6" }}
+                  >
+                    <Send className="h-3.5 w-3.5 shrink-0" strokeWidth={2} aria-hidden="true" />
+                  </button>
+                </div>
               </div>
             </div>
-            <div className="flex justify-start">
-              <div className="max-w-[85%] space-y-1">
-                {t.answer === undefined && t.error === undefined && (
-                  <div className="rounded-sm border border-line bg-surface px-3 py-1.5 font-mono text-xs text-ink-muted">
-                    {aiSetup?.stage === "ready" || aiStatus === "ready"
-                      ? !hasQueriedLlm
-                        ? "Thinking… (first local model query may take longer while model initializes in memory)"
-                        : "Thinking… (local model call, usually a few seconds)"
-                      : "Thinking… (consulting verified scan evidence)"}
+
+            {!showChat && (
+              <div className="flex flex-wrap gap-2">
+                {QUICK_PROMPTS.map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => void handleAsk(p)}
+                    disabled={noScan || pending}
+                    className="rounded-full border px-3 py-1.5 text-xs text-white transition-colors hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-40"
+                    style={{ borderColor: "#30363d" }}
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* RAM notice bar */}
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border p-4" style={{ background: "#161b22", borderColor: "#21262d" }}>
+              <div className="flex items-start gap-3">
+                <Monitor className="mt-0.5 h-4 w-4 shrink-0" style={{ color: "#3b82f6" }} strokeWidth={2} aria-hidden="true" />
+                <div>
+                  <div className="flex items-center gap-1.5 text-sm" style={{ color: "#3b82f6" }}>
+                    <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: statusDot }} aria-hidden="true" />
+                    For best performance: 8 GB RAM recommended (6 GB minimum).
                   </div>
-                )}
-                {t.error !== undefined && (
-                  <div className="rounded-sm border border-status-critical/40 bg-status-critical/10 px-3 py-1.5 font-mono text-xs text-status-critical">
-                    {t.error}
-                  </div>
-                )}
-                {t.answer !== undefined && (
-                  <>
-                    <div className="rounded-sm border border-line bg-surface px-3.5 py-2.5 font-sans text-sm text-ink">
-                      <MarkdownAnswerRenderer content={t.answer} highlights={t.highlights} />
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={`inline-flex items-center gap-1 rounded-sm px-1.5 py-0.5 font-heading text-[10px] font-semibold uppercase tracking-wider ${
-                          t.category === "conversational"
-                            ? "border border-ink-muted/60 text-ink-muted"
-                            : t.grounded
-                              ? "border border-status-good/60 text-status-good"
-                              : "border border-status-warning/60 text-status-warning"
-                        }`}
-                      >
-                        <span className="h-1.5 w-1.5 rounded-full bg-current" />
-                        {t.category === "conversational"
-                          ? "Conversational"
-                          : t.grounded
-                            ? `Grounded · ${t.category}`
-                            : "Declined — not in this scan"}
-                      </span>
-                      {t.sources && t.sources.length > 0 && (
-                        <span className="font-mono text-[11px] text-ink-muted">
-                          {t.sources.length} source{t.sources.length === 1 ? "" : "s"}
-                        </span>
-                      )}
-                    </div>
-                  </>
+                  <p className="mt-0.5 text-xs" style={{ color: "#8b949e" }}>
+                    Patch AI runs locally on your machine. No data leaves your system. {statusText}
+                  </p>
+                </div>
+              </div>
+              <a href="https://github.com/shriram-s7/hash_patch" target="_blank" rel="noopener noreferrer" className="shrink-0 text-xs font-medium" style={{ color: "#3b82f6" }}>
+                Learn more →
+              </a>
+            </div>
+
+            {/* Recent conversations */}
+            <div className="rounded-xl border p-4" style={{ background: "#161b22", borderColor: "#21262d" }}>
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-bold text-white">Recent Conversations</span>
+                {turns.length > 0 && (
+                  <button type="button" onClick={handleClearAll} className="text-xs font-medium" style={{ color: "#3b82f6" }}>
+                    Clear all
+                  </button>
                 )}
               </div>
+              {recentTurns.length === 0 ? (
+                <p className="mt-2 text-xs" style={{ color: "#6e7681" }}>
+                  No conversations yet — ask a question above to get started.
+                </p>
+              ) : (
+                <div className="mt-2">
+                  {recentTurns.map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => jumpToTurn(t.id)}
+                      className="flex w-full items-center gap-2.5 border-b py-3 text-left transition-colors hover:bg-white/5"
+                      style={{ borderColor: "#21262d" }}
+                    >
+                      <MessageCircle className="h-4 w-4 shrink-0" style={{ color: "#8b949e" }} strokeWidth={2} aria-hidden="true" />
+                      <span className="min-w-0 flex-1 truncate text-sm text-white">{t.question}</span>
+                      <span className="shrink-0 text-[11px]" style={{ color: "#6e7681" }}>{relativeTime(t.askedAt)}</span>
+                      <MoreHorizontal className="h-4 w-4 shrink-0" style={{ color: "#484f58" }} strokeWidth={2} aria-hidden="true" />
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
-        ))}
-      </div>
 
-      <div className="mt-4 flex items-center gap-2 border-t border-line pt-3">
-        <input
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && canAsk) handleAsk();
-          }}
-          placeholder={rawCbomText === undefined && scanId === undefined ? "No scan loaded yet" : "Ask a question about this scan…"}
-          disabled={rawCbomText === undefined && scanId === undefined}
-          className="flex-1 rounded-sm border border-line bg-page px-3 py-2 font-sans text-sm text-ink placeholder:text-ink-muted focus:border-line-strong focus:outline-none disabled:opacity-50"
-        />
-        <button
-          type="button"
-          onClick={handleAsk}
-          disabled={!canAsk}
-          className="rounded-sm border border-line bg-surface-2 px-4 py-2 font-heading text-xs font-semibold uppercase tracking-wider text-ink hover:border-line-strong disabled:opacity-40 disabled:hover:border-line transition-colors"
-        >
-          {pending ? "Asking…" : "Ask"}
-        </button>
+          {/* RIGHT COLUMN */}
+          <div className="space-y-4">
+            <div className="flex items-start gap-3 rounded-xl border p-4" style={{ background: "#161b22", borderColor: "#21262d" }}>
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg" style={{ background: "rgba(34,197,94,0.15)" }}>
+                <Monitor className="h-4 w-4 shrink-0" style={{ color: "#22c55e" }} strokeWidth={2} aria-hidden="true" />
+              </div>
+              <div>
+                <div className="text-sm font-semibold text-white">Runs locally on your machine</div>
+                <p className="mt-0.5 text-xs" style={{ color: "#8b949e" }}>Uses your local model (e.g., Llama 3.2:3b)</p>
+              </div>
+            </div>
+
+            <div className="rounded-xl border p-4" style={{ background: "#161b22", borderColor: "#21262d" }}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Lightbulb className="h-4 w-4 shrink-0" style={{ color: "#f59e0b" }} strokeWidth={2} aria-hidden="true" />
+                  <span className="text-sm font-bold text-white">Try these examples</span>
+                </div>
+                <RefreshCw className="h-3.5 w-3.5 shrink-0" style={{ color: "#8b949e" }} strokeWidth={2} aria-hidden="true" />
+              </div>
+              <div className="mt-2">
+                {TRY_EXAMPLES.map((ex) => (
+                  <button
+                    key={ex}
+                    type="button"
+                    onClick={() => void handleAsk(ex)}
+                    disabled={noScan || pending}
+                    className="flex w-full items-center gap-2 border-b py-2.5 text-left text-xs transition-colors hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-40"
+                    style={{ borderColor: "#21262d", color: "#c9d1d9" }}
+                  >
+                    <span className="min-w-0 flex-1">{ex}</span>
+                    <span className="shrink-0" style={{ color: "#484f58" }}>›</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-xl border p-4" style={{ background: "#161b22", borderColor: "#21262d" }}>
+              <h3 className="text-sm font-bold text-white">What can Patch AI do?</h3>
+              <div className="mt-2 space-y-3">
+                {[
+                  { icon: MessageCircle, bg: "rgba(139,92,246,0.15)", color: "#a78bfa", title: "Answer questions about findings", sub: "Get clear, contextual explanations", beta: false },
+                  { icon: Wrench, bg: "rgba(59,130,246,0.15)", color: "#3b82f6", title: "Suggest secure replacements", sub: "With ready-to-use code examples", beta: true },
+                  { icon: ClipboardList, bg: "rgba(30,58,138,0.4)", color: "#60a5fa", title: "Plan migrations", sub: "Estimate effort and prioritise", beta: false },
+                  { icon: Lightbulb, bg: "rgba(245,158,11,0.15)", color: "#f59e0b", title: "Explain complex concepts", sub: "In simple, easy-to-understand terms", beta: true },
+                ].map(({ icon: Icon, bg, color, title, sub, beta }) => (
+                  <div key={title} className="flex items-start gap-2.5">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg" style={{ background: bg }}>
+                      <Icon className="h-4 w-4 shrink-0" style={{ color }} strokeWidth={2} aria-hidden="true" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-xs font-semibold text-white">
+                        {title}
+                        {beta && <span style={{ color: "#8b949e" }}> *</span>}
+                      </div>
+                      <div className="text-[11px]" style={{ color: "#8b949e" }}>{sub}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-xl border p-4" style={{ background: "#0d2b1a", borderColor: "#1a4d33" }}>
+              <Lock className="h-7 w-7 shrink-0" style={{ color: "#22c55e" }} strokeWidth={1.75} aria-hidden="true" />
+              <div className="mt-2 text-sm font-semibold text-white">Your code stays private</div>
+              <p className="mt-0.5 text-xs" style={{ color: "#c9d1d9" }}>
+                All analysis and conversations happen locally on your machine.
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
+  );
+}
+
+/** Patch AI's mascot — full-body robot with antenna, glowing eyes, and a
+ * shield chest emblem, in the app's blue palette. Used large (120) in the
+ * pre-conversation hero card and small (28) as the avatar on every AI
+ * response bubble once a conversation is underway. */
+export function PatchAIBot({ size = 120 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" className="shrink-0">
+      {/* Body */}
+      <rect x="30" y="55" width="60" height="50" rx="12" fill="#1d2d44" stroke="#3b82f6" strokeWidth="1.5"/>
+      {/* Head */}
+      <rect x="25" y="20" width="70" height="45" rx="14" fill="#1d2d44" stroke="#3b82f6" strokeWidth="1.5"/>
+      {/* Eyes */}
+      <circle cx="43" cy="40" r="8" fill="#0d1117"/>
+      <circle cx="77" cy="40" r="8" fill="#0d1117"/>
+      <circle cx="43" cy="40" r="5" fill="#3b82f6"/>
+      <circle cx="77" cy="40" r="5" fill="#3b82f6"/>
+      {/* Eye glow */}
+      <circle cx="43" cy="40" r="3" fill="#93c5fd" opacity="0.8"/>
+      <circle cx="77" cy="40" r="3" fill="#93c5fd" opacity="0.8"/>
+      {/* Mouth */}
+      <path d="M 48 52 Q 60 58 72 52" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" fill="none"/>
+      {/* Antenna */}
+      <line x1="60" y1="20" x2="60" y2="8" stroke="#3b82f6" strokeWidth="2"/>
+      <circle cx="60" cy="6" r="4" fill="#3b82f6"/>
+      {/* Shield emblem on chest */}
+      <path d="M 50 68 L 60 63 L 70 68 L 70 78 Q 60 83 50 78 Z" fill="#3b82f6" opacity="0.8"/>
+      <path d="M 55 73 L 58 76 L 65 69" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+      {/* Arms */}
+      <rect x="14" y="58" width="16" height="8" rx="4" fill="#1d2d44" stroke="#3b82f6" strokeWidth="1.5"/>
+      <rect x="90" y="58" width="16" height="8" rx="4" fill="#1d2d44" stroke="#3b82f6" strokeWidth="1.5"/>
+    </svg>
   );
 }

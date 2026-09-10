@@ -1,27 +1,21 @@
-import { useMemo, useRef, useState } from "react";
-import { displayName, type Finding } from "./cbom/types";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { displayName, type Finding, type QuantumStatus } from "./cbom/types";
 import { DetailPanel } from "./DetailPanel";
-import { quantumStatusColor, useThemeColors } from "./useThemeColors";
+import { getNodeColor, FILTERABLE_STATUSES } from "./graphColors";
 import { buildCallGraphEdges, buildDataChainEdges, type GraphEdge } from "./graphEdges";
+import { ResizableDivider } from "./components/ResizableDivider";
+import { GraphLegend } from "./components/GraphLegend";
+import { ZoomControls } from "./components/ZoomControls";
+import { GraphSearchFilterBar } from "./components/GraphSearchFilterBar";
+import { GraphMinimap } from "./components/GraphMinimap";
 
 const NODE_RADIUS = 13;
 const TIER_GAP_Y = 110;
 const SIBLING_GAP_X = 150;
 const COMPONENT_GAP_X = 90;
-const ISOLATED_GAP_Y = 130;
-const ISOLATED_COL_GAP = 130;
-const ISOLATED_ROW_GAP = 70;
-const ISOLATED_COLS = 6;
 const MARGIN = 80;
 const MIN_ZOOM = 0.3;
 const MAX_ZOOM = 2.5;
-
-const LEGEND: { status: string; label: string; dotClass: string }[] = [
-  { status: "CRITICAL", label: "Critical", dotClass: "bg-status-critical" },
-  { status: "HIGH", label: "High", dotClass: "bg-status-high" },
-  { status: "MEDIUM", label: "Medium", dotClass: "bg-status-medium" },
-  { status: "LOW", label: "Low", dotClass: "bg-status-low" },
-];
 
 interface PositionedNode {
   finding: Finding;
@@ -31,11 +25,9 @@ interface PositionedNode {
 
 interface TreeLayout {
   connectedNodes: PositionedNode[];
-  isolatedNodes: PositionedNode[];
   edges: { source: string; target: string }[];
   width: number;
   height: number;
-  isolatedLabelY: number;
 }
 
 /**
@@ -46,6 +38,10 @@ interface TreeLayout {
  * "entry-point-reachable per existing reachability data"), tiers expand via
  * outgoing (callee) edges. Computed once from `findings`/`edges` via
  * useMemo — no simulation, nothing ticks.
+ *
+ * Isolated findings (no caller/callee edge to anything else in this scan)
+ * are NOT positioned by this layout — they render as a separate HTML chip
+ * grid below the canvas instead of crowding the SVG as more circles.
  */
 function buildTreeLayout(findings: Finding[], edges: { source: string; target: string }[]): TreeLayout {
   const byId = new Map(findings.map((f) => [f.id, f]));
@@ -63,7 +59,6 @@ function buildTreeLayout(findings: Finding[], edges: { source: string; target: s
     hasEdge.add(e.target);
   }
 
-  const isolatedFindings = findings.filter((f) => !hasEdge.has(f.id));
   const connectedFindings = findings.filter((f) => hasEdge.has(f.id));
 
   // Undirected adjacency, for connected-component grouping only.
@@ -95,7 +90,6 @@ function buildTreeLayout(findings: Finding[], edges: { source: string; target: s
   }
 
   // Tier every node in every component via BFS from its root(s).
-  const tierOf = new Map<string, number>();
   const tiersByComponent: string[][][] = [];
   for (const comp of components) {
     const compSet = new Set(comp);
@@ -146,7 +140,6 @@ function buildTreeLayout(findings: Finding[], edges: { source: string; target: s
     for (const [id, t] of localTier) {
       tiersArr[t] = tiersArr[t] ?? [];
       tiersArr[t].push(id);
-      tierOf.set(id, t);
     }
     tiersByComponent.push(tiersArr);
   }
@@ -172,41 +165,37 @@ function buildTreeLayout(findings: Finding[], edges: { source: string; target: s
     xCursor += componentWidth + COMPONENT_GAP_X;
   }
 
-  const treeAreaWidth = Math.max(xCursor, MARGIN * 2);
-  const isolatedLabelY = MARGIN + maxTreeHeight + ISOLATED_GAP_Y;
+  const width = Math.max(xCursor, MARGIN * 2);
+  const height = MARGIN + maxTreeHeight + MARGIN;
 
-  const isolatedNodes: PositionedNode[] = isolatedFindings.map((finding, i) => {
-    const col = i % ISOLATED_COLS;
-    const row = Math.floor(i / ISOLATED_COLS);
-    return {
-      finding,
-      x: MARGIN + col * ISOLATED_COL_GAP + ISOLATED_COL_GAP / 2,
-      y: isolatedLabelY + 40 + row * ISOLATED_ROW_GAP,
-    };
-  });
-
-  const isolatedRows = Math.ceil(isolatedFindings.length / ISOLATED_COLS);
-  const height =
-    isolatedFindings.length > 0
-      ? isolatedLabelY + 40 + isolatedRows * ISOLATED_ROW_GAP + MARGIN
-      : MARGIN + maxTreeHeight + MARGIN;
-  const width = Math.max(treeAreaWidth, ISOLATED_COLS * ISOLATED_COL_GAP + MARGIN * 2);
-
-  return { connectedNodes, isolatedNodes, edges, width, height, isolatedLabelY };
+  return { connectedNodes, edges, width, height };
 }
 
 export function TreeGraph({
   findings,
   selectedId,
   onSelect,
+  detailWidth = 340,
+  onResizeDetail,
+  searchTerm,
+  onSearchChange,
+  activeFilters,
+  onToggleFilter,
 }: {
   findings: Finding[];
   selectedId: string | undefined;
   onSelect: (id: string | undefined) => void;
+  detailWidth?: number;
+  onResizeDetail?: (delta: number) => void;
+  searchTerm: string;
+  onSearchChange: (term: string) => void;
+  activeFilters: string[];
+  onToggleFilter: (status: string) => void;
 }) {
-  const colors = useThemeColors();
   const [hoveredId, setHoveredId] = useState<string | undefined>(undefined);
   const [view, setView] = useState({ x: 0, y: 0, zoom: 1 });
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerSize, setContainerSize] = useState({ width: 800, height: 600 });
   const panState = useRef<{ dragging: boolean; startX: number; startY: number; viewX: number; viewY: number }>({
     dragging: false,
     startX: 0,
@@ -215,21 +204,42 @@ export function TreeGraph({
     viewY: 0,
   });
 
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (entry) setContainerSize({ width: entry.contentRect.width, height: entry.contentRect.height });
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
   const edges = useMemo(() => buildCallGraphEdges(findings), [findings]);
   // Data-chain edges are rendered ON TOP of the call-graph tree, but do NOT
   // participate in tree layout (roots/tiers) — the layout stays exactly the
   // call-graph shape it always was, and data-chain edges just connect
-  // whatever positions the two endpoints land at (tree area or isolated
-  // grid), the same way `edges` connects tree-area nodes.
+  // whatever positions the two endpoints land at.
   const dataChainEdges: GraphEdge[] = useMemo(() => buildDataChainEdges(findings), [findings]);
   const layout = useMemo(() => buildTreeLayout(findings, edges), [findings, edges]);
   const positionById = useMemo(() => {
     const map = new Map<string, { x: number; y: number }>();
-    for (const n of [...layout.connectedNodes, ...layout.isolatedNodes]) map.set(n.finding.id, { x: n.x, y: n.y });
+    for (const n of layout.connectedNodes) map.set(n.finding.id, { x: n.x, y: n.y });
     return map;
   }, [layout]);
 
+  const isolatedFindings = useMemo(() => {
+    const connectedIds = new Set(layout.connectedNodes.map((n) => n.finding.id));
+    return findings.filter((f) => !connectedIds.has(f.id));
+  }, [findings, layout]);
+
   const selectedFinding = findings.find((f) => f.id === selectedId);
+
+  const cleanSearch = searchTerm.trim().toLowerCase();
+  function nodeMatchesFilter(status: QuantumStatus | undefined): boolean {
+    if (status === undefined || !FILTERABLE_STATUSES.includes(status)) return true;
+    return activeFilters.includes(status);
+  }
 
   const onBackgroundPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
     // Only pan when the background itself is grabbed, not a node — nodes
@@ -254,11 +264,48 @@ export function TreeGraph({
     setView((v) => ({ ...v, zoom: Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, v.zoom * (e.deltaY < 0 ? 1.1 : 0.9))) }));
   };
 
+  function zoomBy(factor: number) {
+    setView((v) => {
+      const newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, v.zoom * factor));
+      const cx = containerSize.width / 2;
+      const cy = containerSize.height / 2;
+      const contentX = (cx - v.x) / v.zoom;
+      const contentY = (cy - v.y) / v.zoom;
+      return { zoom: newZoom, x: cx - contentX * newZoom, y: cy - contentY * newZoom };
+    });
+  }
+  function handleZoomIn() {
+    zoomBy(1.25);
+  }
+  function handleZoomOut() {
+    zoomBy(1 / 1.25);
+  }
+  function handleFitAll() {
+    const scale = Math.min(containerSize.width / layout.width, containerSize.height / layout.height, MAX_ZOOM);
+    const zoom = Math.max(MIN_ZOOM, scale * 0.92);
+    setView({
+      zoom,
+      x: (containerSize.width - layout.width * zoom) / 2,
+      y: (containerSize.height - layout.height * zoom) / 2,
+    });
+  }
+  function handleMinimapNavigate(x: number, y: number) {
+    setView((v) => ({ ...v, x: containerSize.width / 2 - x * v.zoom, y: containerSize.height / 2 - y * v.zoom }));
+  }
+
+  const minimapNodes = layout.connectedNodes.map((n) => ({ x: n.x, y: n.y, color: getNodeColor(n.finding.quantumStatus) }));
+  const minimapViewport = {
+    x: -view.x / view.zoom,
+    y: -view.y / view.zoom,
+    width: containerSize.width / view.zoom,
+    height: containerSize.height / view.zoom,
+  };
+
   return (
     <div className="flex h-full flex-col gap-3">
-      <div className="border-b border-line pb-2.5">
-        <h2 className="font-heading text-[26px] font-medium text-ink tracking-tight">Dependency Tree</h2>
-        <p className="mt-0.5 font-sans text-sm text-ink-muted leading-relaxed">
+      <div className="border-b pb-2.5" style={{ borderColor: "#21262d" }}>
+        <h2 className="text-xl font-bold text-white">Dependency Tree</h2>
+        <p className="mt-0.5 max-w-3xl text-sm leading-relaxed" style={{ color: "#8b949e" }}>
           A static hierarchy built from the same call-graph edges as Cluster mode: a root (no caller among
           the other findings, or the entry-point-reachable one in a cyclic group) sits at the top of each
           tier, its callees fan out beneath it, solid arrows show which finding depends on which. Dashed
@@ -268,13 +315,20 @@ export function TreeGraph({
         </p>
       </div>
 
+      <GraphSearchFilterBar
+        searchTerm={searchTerm}
+        onSearchChange={onSearchChange}
+        activeFilters={activeFilters}
+        onToggleFilter={onToggleFilter}
+      />
+
       <div className="flex min-h-0 flex-1 gap-4">
-        <div className="relative min-w-0 flex-1 overflow-hidden rounded-sm border border-line">
+        <div ref={containerRef} className="relative min-w-0 flex-1 overflow-hidden rounded-xl border" style={{ borderColor: "#21262d" }}>
           <svg
             width="100%"
             height="100%"
             className="cursor-grab active:cursor-grabbing"
-            style={{ backgroundColor: colors["--page"] }}
+            style={{ backgroundColor: "#0d1117" }}
             onPointerDown={onBackgroundPointerDown}
             onPointerMove={onBackgroundPointerMove}
             onPointerUp={onBackgroundPointerUp}
@@ -282,69 +336,19 @@ export function TreeGraph({
             onWheel={onWheel}
           >
             <defs>
-              <marker
-                id="tree-arrow"
-                viewBox="0 0 10 10"
-                refX="9"
-                refY="5"
-                markerWidth="7"
-                markerHeight="7"
-                orient="auto-start-reverse"
-              >
-                <path d="M0 0 L10 5 L0 10 z" fill={colors["--ink-secondary"]} />
+              <marker id="tree-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0 0 L10 5 L0 10 z" fill="#8b949e" />
               </marker>
-              <marker
-                id="tree-arrow-chain"
-                viewBox="0 0 10 10"
-                refX="9"
-                refY="5"
-                markerWidth="7"
-                markerHeight="7"
-                orient="auto-start-reverse"
-              >
-                <path d="M0 0 L10 5 L0 10 z" fill={colors["--status-warning"]} />
+              <marker id="tree-arrow-chain" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0 0 L10 5 L0 10 z" fill="#f59e0b" />
               </marker>
-              <marker
-                id="tree-arrow-chain-key"
-                viewBox="0 0 10 10"
-                refX="9"
-                refY="5"
-                markerWidth="7"
-                markerHeight="7"
-                orient="auto-start-reverse"
-              >
-                <path d="M0 0 L10 5 L0 10 z" fill={colors["--ink-muted"] ?? "#9ca3af"} />
+              <marker id="tree-arrow-chain-key" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0 0 L10 5 L0 10 z" fill="#6e7681" />
               </marker>
             </defs>
 
             <g transform={`translate(${view.x} ${view.y}) scale(${view.zoom})`}>
-              {/* Isolated-section separator + label */}
-              {layout.isolatedNodes.length > 0 && (
-                <>
-                  <line
-                    x1={0}
-                    y1={layout.isolatedLabelY - 20}
-                    x2={layout.width}
-                    y2={layout.isolatedLabelY - 20}
-                    stroke={colors["--line"]}
-                    strokeWidth={1}
-                    strokeDasharray="4 5"
-                  />
-                  <text
-                    x={MARGIN}
-                    y={layout.isolatedLabelY}
-                    fill={colors["--ink-muted"]}
-                    fontSize={12}
-                    fontFamily="Inter, sans-serif"
-                    fontWeight={600}
-                    style={{ textTransform: "uppercase", letterSpacing: "0.08em" }}
-                  >
-                    Unconnected findings ({layout.isolatedNodes.length}) — no direct caller/callee edge
-                  </text>
-                </>
-              )}
-
-              {/* Edges (tree area only — isolated nodes have none by definition) */}
+              {/* Edges */}
               {edges.map((e) => {
                 const from = positionById.get(e.source);
                 const to = positionById.get(e.target);
@@ -362,7 +366,7 @@ export function TreeGraph({
                     y1={from.y}
                     x2={toX}
                     y2={toY}
-                    stroke={colors["--ink-secondary"]}
+                    stroke="#8b949e"
                     strokeWidth={2.5}
                     markerEnd="url(#tree-arrow)"
                   />
@@ -390,7 +394,7 @@ export function TreeGraph({
                     y1={from.y}
                     x2={toX}
                     y2={toY}
-                    stroke={isKeyMaterial ? (colors["--ink-muted"] ?? "#9ca3af") : colors["--status-warning"]}
+                    stroke={isKeyMaterial ? "#6e7681" : "#f59e0b"}
                     strokeWidth={isKeyMaterial ? 1.5 : 2}
                     strokeDasharray={isKeyMaterial ? "2 3" : "4 3"}
                     markerEnd={isKeyMaterial ? "url(#tree-arrow-chain-key)" : "url(#tree-arrow-chain)"}
@@ -399,9 +403,14 @@ export function TreeGraph({
               })}
 
               {/* Nodes */}
-              {[...layout.connectedNodes, ...layout.isolatedNodes].map(({ finding, x, y }) => {
+              {layout.connectedNodes.map(({ finding, x, y }) => {
                 const isSelected = finding.id === selectedId;
                 const isHovered = finding.id === hoveredId;
+                const passesFilter = nodeMatchesFilter(finding.quantumStatus);
+                const isSearchActive = cleanSearch !== "";
+                const matchesSearch = !isSearchActive || displayName(finding).toLowerCase().includes(cleanSearch);
+                const opacity = !passesFilter ? 0.06 : isSearchActive && !matchesSearch ? 0.2 : 1;
+                const glow = passesFilter && isSearchActive && matchesSearch;
                 return (
                   <g
                     key={finding.id}
@@ -409,20 +418,21 @@ export function TreeGraph({
                     onClick={() => onSelect(finding.id)}
                     onMouseEnter={() => setHoveredId(finding.id)}
                     onMouseLeave={() => setHoveredId(undefined)}
-                    style={{ cursor: "pointer" }}
+                    style={{ cursor: "pointer", opacity }}
                   >
                     <circle
                       r={NODE_RADIUS}
-                      fill={quantumStatusColor(colors, finding.quantumStatus)}
-                      stroke={isSelected || isHovered ? colors["--ink"] : "transparent"}
+                      fill={getNodeColor(finding.quantumStatus)}
+                      stroke={isSelected || isHovered || glow ? "#f0f6fc" : "transparent"}
                       strokeWidth={2}
+                      style={glow && !isSelected && !isHovered ? { filter: "drop-shadow(0 0 4px #ffffff)" } : undefined}
                     />
                     <text
                       y={NODE_RADIUS + 14}
                       textAnchor="middle"
                       fontSize={11}
                       fontFamily="Inter, sans-serif"
-                      fill={colors["--ink"]}
+                      fill="#f0f6fc"
                     >
                       {displayName(finding)}
                     </text>
@@ -432,44 +442,48 @@ export function TreeGraph({
             </g>
           </svg>
 
-          <div className="pointer-events-none absolute bottom-3 left-3 flex flex-col gap-1 rounded-sm border border-line bg-surface/90 px-2.5 py-2">
-            {LEGEND.map((item) => (
-              <div key={item.status} className="flex items-center gap-1.5">
-                <span className={`h-2 w-2 rounded-full ${item.dotClass}`} aria-hidden="true" />
-                <span className="text-[11px] uppercase tracking-wide text-ink-secondary">{item.label}</span>
-              </div>
-            ))}
-            <div className="mt-1 flex flex-col gap-1 border-t border-line pt-1">
-              <div className="flex items-center gap-1.5">
-                <span className="h-0 w-3 border-t-2 border-ink-secondary" aria-hidden="true" />
-                <span className="text-[11px] uppercase tracking-wide text-ink-secondary">Cross-function call</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span
-                  className="h-0 w-3 border-t-2 border-dashed"
-                  style={{ borderColor: colors["--status-warning"] }}
-                  aria-hidden="true"
-                />
-                <span className="text-[11px] uppercase tracking-wide text-ink-secondary">Ciphertext chain</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span
-                  className="h-0 w-3 border-t-[1.5px] border-dotted"
-                  style={{ borderColor: colors["--ink-muted"] ?? "#9ca3af" }}
-                  aria-hidden="true"
-                />
-                <span className="text-[11px] uppercase tracking-wide text-ink-secondary">Key-material binding</span>
-              </div>
-            </div>
-          </div>
+          <ZoomControls onZoomIn={handleZoomIn} onZoomOut={handleZoomOut} onFitAll={handleFitAll} />
+          <GraphMinimap nodes={minimapNodes} viewport={minimapViewport} onNavigate={handleMinimapNavigate} />
+          <GraphLegend />
         </div>
 
         {selectedFinding && (
-          <div className="w-[340px] shrink-0 overflow-y-auto">
-            <DetailPanel finding={selectedFinding} onClose={() => onSelect(undefined)} />
-          </div>
+          <>
+            {onResizeDetail && <ResizableDivider onResize={onResizeDetail} />}
+            <div className="shrink-0 overflow-hidden" style={{ width: detailWidth, minWidth: 320, transition: "width 200ms ease" }}>
+              <DetailPanel finding={selectedFinding} onClose={() => onSelect(undefined)} />
+            </div>
+          </>
         )}
       </div>
+
+      {isolatedFindings.length > 0 && (
+        <div className="shrink-0 max-h-[160px] overflow-y-auto rounded-xl border p-3" style={{ background: "#161b22", borderColor: "#21262d" }}>
+          <div className="mb-2 text-xs leading-relaxed" style={{ color: "#8b949e" }}>
+            <span className="font-semibold text-white">
+              {isolatedFindings.length} unconnected finding{isolatedFindings.length === 1 ? "" : "s"}
+            </span>{" "}
+            — no direct caller/callee edge to any other finding in this scan. An honest result, not a bug.
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {isolatedFindings.map((f) => (
+              <button
+                key={f.id}
+                type="button"
+                onClick={() => onSelect(f.id)}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-colors"
+                style={{
+                  borderColor: f.id === selectedId ? "#3b82f6" : "#21262d",
+                  background: "#0d1117",
+                }}
+              >
+                <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: getNodeColor(f.quantumStatus) }} />
+                <span className="text-xs" style={{ color: "#f0f6fc" }}>{displayName(f)}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

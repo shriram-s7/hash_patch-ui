@@ -4,16 +4,11 @@ import type { PlanScenario } from "./plan/types";
 import { QuantumStatusBadge } from "./badges/QuantumStatusBadge";
 import { ReachabilityBadge } from "./badges/ReachabilityBadge";
 import { TimelineScrubber } from "./TimelineScrubber";
+import { ExplainerBox } from "./components/ExplainerBox";
 
-const EXCLUDED_CANDIDATES_EXPLANATION =
-  "Migration scheduling only covers findings broken outright by Shor's algorithm (RSA, ECDSA, " +
-  "Ed25519, DH, ...) -- the actual PQC-migration problem this pillar schedules. Most commonly " +
-  "excluded: Grover-weakened symmetric primitives and hashes (AES, SHA-256, ...), whose standard " +
-  "mitigation is a key-size doubling within the SAME algorithm family (e.g. AES-128 -> AES-256), " +
-  "not a migration to a different PQC algorithm -- no blast-radius-style replacement-size model " +
-  "applies to them here. Also excluded: already broken-classically findings (an ordinary " +
-  "security fix, unrelated to a PQC timeline) and non-operation findings (string references, " +
-  "certificates).";
+function Code({ children }: { children: string }) {
+  return <code className="rounded bg-[#161b22] px-1 text-xs font-mono text-[#e6edf3]">{children}</code>;
+}
 
 /** Click-to-open explanation box for the excluded-candidates count — a
  * small dismissible panel (not a native title tooltip, which doesn't work
@@ -29,39 +24,74 @@ function ExcludedCandidatesInfo({ excludedCount }: { excludedCount: number }) {
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        className="text-ink-muted underline decoration-dotted decoration-1 underline-offset-2 hover:text-ink-secondary transition-colors"
+        className="underline decoration-dotted decoration-1 underline-offset-2 transition-colors hover:text-white"
+        style={{ color: "#3b82f6" }}
       >
         (<span className="font-semibold tabular-nums">{excludedCount}</span> finding
         {excludedCount === 1 ? "" : "s"} not a migration candidate — why?)
       </button>
 
       {open && (
-        <div
-          role="dialog"
-          aria-label="Why some findings are not migration candidates"
-          className="absolute left-0 top-full z-20 mt-2 w-80 rounded-sm border border-line-strong bg-surface p-3 shadow-xl"
-        >
-          <div className="mb-1.5 flex items-start justify-between gap-2">
-            <h3 className="font-heading text-[10px] font-medium uppercase tracking-wider text-ink-muted">
-              Why not a migration candidate?
-            </h3>
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              aria-label="Close"
-              className="shrink-0 rounded-sm border border-line px-1.5 py-0.5 font-heading text-[10px] font-semibold uppercase tracking-wider text-ink-secondary hover:border-line-strong hover:text-ink transition-colors"
-            >
-              Close
-            </button>
-          </div>
-          <p className="font-sans text-[11px] leading-relaxed text-ink-secondary normal-case tracking-normal">
-            {EXCLUDED_CANDIDATES_EXPLANATION}
-          </p>
+        <div className="absolute left-0 top-full z-20 mt-2">
+          <ExplainerBox title="Why not a migration candidate?" type="info" onClose={() => setOpen(false)}>
+            Migration scheduling only covers findings broken outright by Shor's algorithm (
+            <Code>RSA</Code>, <Code>ECDSA</Code>, <Code>Ed25519</Code>, <Code>DH</Code>, ...) — the actual
+            PQC-migration problem this pillar schedules. Most commonly excluded:{" "}
+            <strong className="text-[#f0f6fc]">Grover-weakened</strong> symmetric primitives and hashes (
+            <Code>AES</Code>, <Code>SHA-256</Code>, ...), whose standard mitigation is a key-size doubling
+            within the SAME algorithm family (e.g. <Code>AES-128</Code> → <Code>AES-256</Code>), not a
+            migration to a different PQC algorithm — no blast-radius-style replacement-size model applies to
+            them here. Also excluded: already <strong className="text-[#f0f6fc]">broken-classically</strong>{" "}
+            findings (an ordinary security fix, unrelated to a PQC timeline) and non-operation findings
+            (string references, certificates).
+          </ExplainerBox>
         </div>
       )}
     </div>
   );
 }
+
+/** Click-to-open explanation box for findings deferred past the budget —
+ * same anchored-popover pattern as ExcludedCandidatesInfo above, restyled
+ * to the info-box palette (bg-[#0d1a2e]/border-[#21262d]) since this one
+ * lists real data (which assets, not just a count) rather than one static
+ * paragraph. */
+function DeferredFindingsInfo({ unmigratedIds, findings }: { unmigratedIds: string[]; findings?: Finding[] }) {
+  const [open, setOpen] = useState(false);
+  const names = unmigratedIds.map((id) => findings?.find((f) => f.id === id)?.name ?? id);
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        className="underline decoration-dotted decoration-1 underline-offset-2 transition-colors hover:text-white"
+        style={{ color: "#f59e0b" }}
+      >
+        (<span className="font-semibold tabular-nums">{unmigratedIds.length}</span> deferred due to budget limit)
+      </button>
+
+      {open && (
+        <div className="absolute left-0 top-full z-20 mt-2">
+          <ExplainerBox title="Deferred by budget limit" type="warning" onClose={() => setOpen(false)}>
+            <p className="mb-2">
+              These are real migration candidates that did not fit within the available budget under this
+              ordering — they would be scheduled next if the budget were extended.
+            </p>
+            <ul className="max-h-48 space-y-1 overflow-y-auto font-mono text-[11px] text-[#f0f6fc]">
+              {names.map((name, i) => (
+                <li key={i}>• {name}</li>
+              ))}
+            </ul>
+          </ExplainerBox>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const SCHEDULE_BAR_COLORS = ["#3b82f6", "#8b5cf6", "#22c55e", "#f59e0b", "#ef4444", "#06b6d4"];
 
 export function OptimizerBar({
   scenario,
@@ -78,27 +108,30 @@ export function OptimizerBar({
   findings?: Finding[];
   isDemoPlan?: boolean;
 }) {
-  const totalDays =
-    budgetDays ?? Math.max(1, ...scenario.schedule.map((item) => item.endDay));
+  const totalDays = budgetDays ?? Math.max(1, ...scenario.schedule.map((item) => item.endDay));
 
   return (
-    <div className="rounded-sm border border-line bg-surface p-4 space-y-4">
-      <div>
+    <div className="space-y-5">
+      {/* Migration schedule */}
+      <div className="rounded-xl border p-5" style={{ background: "#161b22", borderColor: "#21262d" }}>
         <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
-          <div className="font-heading text-[11px] font-medium uppercase tracking-wider text-ink-muted">
+          <div className="text-[11px] font-semibold uppercase tracking-widest" style={{ color: "#8b949e" }}>
             Migration schedule — {scenario.name}
             {scenario.estimatedYear !== undefined ? ` (~${scenario.estimatedYear})` : ""}
           </div>
           {isDemoPlan && (
-            <span className="rounded bg-amber-500/20 px-2 py-0.5 text-[10px] font-bold text-amber-300 border border-amber-500/40 uppercase tracking-wide">
-              DEMO / SAMPLE DATA
+            <span
+              className="rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+              style={{ background: "rgba(245,158,11,0.15)", borderColor: "rgba(245,158,11,0.4)", color: "#f59e0b" }}
+            >
+              Demo / sample data
             </span>
           )}
         </div>
         {scenario.headline !== undefined && (
-          <p className="mb-3 font-sans text-sm font-semibold text-ink leading-relaxed">{scenario.headline}</p>
+          <p className="mb-3 text-sm font-semibold leading-relaxed text-white">{scenario.headline}</p>
         )}
-        <div className="flex h-8 w-full overflow-hidden rounded-sm border border-line bg-page">
+        <div className="flex h-8 w-full overflow-hidden rounded-lg border" style={{ borderColor: "#21262d", background: "#0d1117" }}>
           {scenario.schedule.map((item, i) => {
             const widthPct = totalDays > 0 ? ((item.endDay - item.startDay) / totalDays) * 100 : 0;
             return (
@@ -107,63 +140,81 @@ export function OptimizerBar({
                 title={`${item.name}: day ${item.startDay}–${item.endDay}${
                   item.riskScore !== undefined ? ` (risk score ${item.riskScore})` : ""
                 }`}
-                style={{ width: `${widthPct}%` }}
-                className="border-r border-page bg-line-strong hover:bg-ink transition-colors last:border-r-0"
+                style={{ width: `${widthPct}%`, background: SCHEDULE_BAR_COLORS[i % SCHEDULE_BAR_COLORS.length] }}
+                className="border-r opacity-90 transition-opacity last:border-r-0 hover:opacity-100"
               />
             );
           })}
         </div>
-        <div className="mt-2 font-heading text-xs text-ink-muted flex flex-wrap items-center gap-3">
+
+        {/* Day tick marks under the bar, evenly spaced across the budget. */}
+        <div className="relative mt-1">
+          <div className="flex justify-between text-xs" style={{ color: "#8b949e" }}>
+            {Array.from({ length: Math.ceil(Math.max(totalDays, 1)) + 1 }, (_, i) => (
+              <span key={i} className="text-center" style={{ width: `${100 / Math.max(totalDays, 1)}%` }}>
+                Day {i}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        {/* Legend — which color is which scheduled asset. */}
+        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]" style={{ color: "#8b949e" }}>
+          {scenario.schedule.map((item, i) => (
+            <div key={i} className="flex items-center gap-1.5">
+              <span
+                className="h-2 w-2 shrink-0 rounded-full"
+                style={{ background: SCHEDULE_BAR_COLORS[i % SCHEDULE_BAR_COLORS.length] }}
+                aria-hidden="true"
+              />
+              <span className="max-w-[140px] truncate">{item.name}</span>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-2 flex flex-wrap items-center gap-3 text-xs" style={{ color: "#8b949e" }}>
           <div>
-            <span className="font-semibold text-ink tabular-nums">{scenario.schedule.length}</span> asset{scenario.schedule.length === 1 ? "" : "s"} scheduled over{" "}
-            <span className="font-semibold text-ink tabular-nums">{totalDays}</span> day{totalDays === 1 ? "" : "s"}
+            <span className="font-semibold text-white tabular-nums">{scenario.schedule.length}</span> asset
+            {scenario.schedule.length === 1 ? "" : "s"} scheduled over{" "}
+            <span className="font-semibold text-white tabular-nums">{totalDays}</span> day{totalDays === 1 ? "" : "s"}
           </div>
           {candidateCount !== undefined && (
-            <div className="text-ink-secondary">
-              (<span className="font-semibold tabular-nums text-ink">{candidateCount}</span> candidate{candidateCount === 1 ? "" : "s"} evaluated)
+            <div>
+              (<span className="font-semibold tabular-nums text-white">{candidateCount}</span> candidate
+              {candidateCount === 1 ? "" : "s"} evaluated)
             </div>
           )}
-          {excludedCount !== undefined && excludedCount > 0 && (
-            <ExcludedCandidatesInfo excludedCount={excludedCount} />
-          )}
+          {excludedCount !== undefined && excludedCount > 0 && <ExcludedCandidatesInfo excludedCount={excludedCount} />}
           {scenario.unmigratedFindingIds.length > 0 && (
-            <div className="text-amber-500/90 dark:text-amber-400">
-              (<span className="font-semibold tabular-nums">{scenario.unmigratedFindingIds.length}</span> deferred due to budget limit)
-            </div>
+            <DeferredFindingsInfo unmigratedIds={scenario.unmigratedFindingIds} findings={findings} />
           )}
         </div>
       </div>
 
-      <TimelineScrubber scenario={scenario} findings={findings} />
+      {/* Timeline scrubber */}
+      <div className="rounded-xl border p-5" style={{ background: "#161b22", borderColor: "#21262d" }}>
+        <TimelineScrubber scenario={scenario} findings={findings} />
+      </div>
 
-      {/* Migration Schedule List Table */}
+      {/* Scheduled migration tasks */}
       {scenario.schedule.length > 0 && (
-        <div className="space-y-2 pt-1 border-t border-line">
-          <div className="font-heading text-[11px] font-medium uppercase tracking-wider text-ink-muted">
-            Scheduled Migration Tasks
+        <div className="rounded-xl border p-5" style={{ background: "#161b22", borderColor: "#21262d" }}>
+          <div className="mb-3 text-[11px] font-semibold uppercase tracking-widest" style={{ color: "#8b949e" }}>
+            Scheduled migration tasks
           </div>
-          <div className="overflow-x-auto rounded-sm border border-line bg-page">
-            <table className="w-full text-left text-xs">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[640px] border-collapse text-left text-xs">
               <thead>
-                <tr className="border-b border-line bg-surface-2/40">
-                  <th className="px-3 py-2 font-heading text-[10px] font-medium uppercase tracking-wider text-ink-muted text-right w-8">
-                    #
-                  </th>
-                  <th className="px-3 py-2 font-heading text-[10px] font-medium uppercase tracking-wider text-ink-muted">
-                    Asset
-                  </th>
-                  <th className="px-3 py-2 font-heading text-[10px] font-medium uppercase tracking-wider text-ink-muted">
-                    Quantum Status
-                  </th>
-                  <th className="px-3 py-2 font-heading text-[10px] font-medium uppercase tracking-wider text-ink-muted">
-                    Reachability
-                  </th>
-                  <th className="px-3 py-2 font-heading text-[10px] font-medium uppercase tracking-wider text-ink-muted text-right">
-                    Day Window
-                  </th>
-                  <th className="px-3 py-2 font-heading text-[10px] font-medium uppercase tracking-wider text-ink-muted text-right">
-                    Effort
-                  </th>
+                <tr>
+                  {["#", "Asset", "Quantum Status", "Reachability", "Priority Score", "Day Window", "Effort"].map((h, i) => (
+                    <th
+                      key={h}
+                      className={`border-b pb-2 pr-3 font-medium uppercase tracking-wide ${i === 0 || i >= 4 ? "text-right" : "text-left"}`}
+                      style={{ borderColor: "#21262d", color: "#6e7681", fontSize: 10 }}
+                    >
+                      {h}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
@@ -172,44 +223,41 @@ export function OptimizerBar({
                     (f) =>
                       f.id === item.findingId ||
                       f.name.toLowerCase() === item.name.toLowerCase() ||
-                      item.name.toLowerCase().includes(f.name.toLowerCase())
+                      item.name.toLowerCase().includes(f.name.toLowerCase()),
                   );
                   const isInert = correlated?.reachability === "inert";
 
                   return (
                     <tr
                       key={i}
-                      className={`border-b border-line last:border-b-0 ${
-                        isInert ? "opacity-60 hover:opacity-100 transition-opacity" : ""
-                      }`}
+                      className="border-b transition-opacity last:border-b-0"
+                      style={{ borderColor: "#21262d", opacity: isInert ? 0.6 : 1 }}
                     >
-                      <td className="px-3 py-2 font-heading text-xs text-ink-muted text-right tabular-nums">
+                      <td className="py-2.5 pr-3 text-right tabular-nums" style={{ color: "#8b949e" }}>
                         {i + 1}
                       </td>
-                      <td className="px-3 py-2 font-heading text-xs font-semibold text-ink">
-                        {item.name}
-                      </td>
-                      <td className="px-3 py-2">
+                      <td className="py-2.5 pr-3 font-semibold text-white">{item.name}</td>
+                      <td className="py-2.5 pr-3">
                         {correlated?.quantumStatus ? (
                           <QuantumStatusBadge status={correlated.quantumStatus} />
                         ) : (
-                          <span className="font-mono text-xs text-ink-muted">—</span>
+                          <span style={{ color: "#6e7681" }}>—</span>
                         )}
                       </td>
-                      <td className="px-3 py-2">
+                      <td className="py-2.5 pr-3">
                         {correlated ? (
-                          <ReachabilityBadge
-                            reachability={correlated.reachability}
-                            status={correlated.quantumStatus}
-                          />
+                          <ReachabilityBadge reachability={correlated.reachability} status={correlated.quantumStatus} />
                         ) : (
-                          <span className="font-mono text-xs text-ink-muted">—</span>
+                          <span style={{ color: "#6e7681" }}>—</span>
                         )}
                       </td>
-                      <td className="px-3 py-2 font-mono text-xs text-ink-secondary text-right tabular-nums">
+                      <td className="py-2.5 pr-3 text-right font-mono tabular-nums" style={{ color: "#c9d1d9" }}>
+                        {item.riskScore !== undefined ? item.riskScore.toFixed(1) : "—"}
+                      </td>
+                      <td className="py-2.5 pr-3 text-right font-mono tabular-nums" style={{ color: "#c9d1d9" }}>
                         {item.startDay}–{item.endDay}
                       </td>
-                      <td className="px-3 py-2 font-heading text-xs font-semibold text-ink-secondary text-right tabular-nums">
+                      <td className="py-2.5 text-right font-semibold tabular-nums text-white">
                         {item.costDays !== undefined ? `${item.costDays}d` : "—"}
                       </td>
                     </tr>
