@@ -5,6 +5,9 @@ import { QuantumStatusBadge } from "./badges/QuantumStatusBadge";
 import { ReachabilityBadge } from "./badges/ReachabilityBadge";
 import { TimelineScrubber } from "./TimelineScrubber";
 import { ExplainerBox } from "./components/ExplainerBox";
+import { FEATURE_GUIDED_UI } from "./tour/flags";
+import { useTourStoreState } from "./tour/store";
+import { DUR_BASE, EASE_OUT } from "./tour/motionTokens";
 
 function Code({ children }: { children: string }) {
   return <code className="rounded bg-[#161b22] px-1 text-xs font-mono text-[#e6edf3]">{children}</code>;
@@ -91,6 +94,33 @@ function DeferredFindingsInfo({ unmigratedIds, findings }: { unmigratedIds: stri
   );
 }
 
+function ProgressRing({ fraction, state }: { fraction: number; state: "complete" | "in_progress" | "pending" }) {
+  const radius = 7;
+  const circumference = 2 * Math.PI * radius;
+  const strokeDashoffset = circumference - fraction * circumference;
+  const strokeColor = state === "complete" ? "#22c55e" : state === "in_progress" ? "#3b82f6" : "#30363d";
+
+  return (
+    <svg className="w-5 h-5 -rotate-90" viewBox="0 0 20 20" aria-hidden="true">
+      <circle cx="10" cy="10" r={radius} fill="none" stroke="#21262d" strokeWidth="2" />
+      {state !== "pending" && (
+        <circle
+          cx="10"
+          cy="10"
+          r={radius}
+          fill="none"
+          stroke={strokeColor}
+          strokeWidth="2"
+          strokeDasharray={circumference}
+          strokeDashoffset={state === "complete" ? 0 : strokeDashoffset}
+          strokeLinecap="round"
+          style={{ transition: `stroke-dashoffset ${DUR_BASE}ms ${EASE_OUT}, stroke ${DUR_BASE}ms ${EASE_OUT}` }}
+        />
+      )}
+    </svg>
+  );
+}
+
 const SCHEDULE_BAR_COLORS = ["#3b82f6", "#8b5cf6", "#22c55e", "#f59e0b", "#ef4444", "#06b6d4"];
 
 export function OptimizerBar({
@@ -108,6 +138,9 @@ export function OptimizerBar({
   findings?: Finding[];
   isDemoPlan?: boolean;
 }) {
+  const tourState = useTourStoreState();
+  const scrubberSync = FEATURE_GUIDED_UI ? tourState.scrubberSync : null;
+  const currentScrubDay = scrubberSync?.currentDay ?? null;
   const totalDays = budgetDays ?? Math.max(1, ...scenario.schedule.map((item) => item.endDay));
 
   return (
@@ -199,9 +232,32 @@ export function OptimizerBar({
       {/* Scheduled migration tasks */}
       {scenario.schedule.length > 0 && (
         <div className="rounded-xl border p-5" style={{ background: "#161b22", borderColor: "#21262d" }}>
-          <div className="mb-3 text-[11px] font-semibold uppercase tracking-widest" style={{ color: "#8b949e" }}>
-            Scheduled migration tasks
-          </div>
+          {FEATURE_GUIDED_UI ? (
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <div className="text-[11px] font-semibold uppercase tracking-widest" style={{ color: "#8b949e" }}>
+                Scheduled migration tasks
+              </div>
+              {scrubberSync && (
+                <div
+                  className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium"
+                  style={{
+                    borderColor: "rgba(59, 130, 246, 0.4)",
+                    background: "rgba(59, 130, 246, 0.1)",
+                    color: "#60a5fa",
+                  }}
+                >
+                  <span className="h-1.5 w-1.5 rounded-full bg-[#3b82f6]" aria-hidden="true" />
+                  <span>
+                    {scrubberSync.fixedCount} of {scrubberSync.totalCandidates} complete · {Math.round(scrubberSync.optimizerPct)}% of risk eliminated by Day {scrubberSync.currentDay.toFixed(1)}
+                  </span>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="mb-3 text-[11px] font-semibold uppercase tracking-widest" style={{ color: "#8b949e" }}>
+              Scheduled migration tasks
+            </div>
+          )}
           <div className="overflow-x-auto">
             <table className="w-full min-w-[640px] border-collapse text-left text-xs">
               <thead>
@@ -215,6 +271,14 @@ export function OptimizerBar({
                       {h}
                     </th>
                   ))}
+                  {FEATURE_GUIDED_UI && (
+                    <th
+                      className="border-b pb-2 text-center font-medium uppercase tracking-wide w-14 min-w-[56px]"
+                      style={{ borderColor: "#21262d", color: "#6e7681", fontSize: 10 }}
+                    >
+                      DONE
+                    </th>
+                  )}
                 </tr>
               </thead>
               <tbody>
@@ -227,13 +291,33 @@ export function OptimizerBar({
                   );
                   const isInert = correlated?.reachability === "inert";
 
+                  const isComplete = currentScrubDay !== null && item.endDay <= currentScrubDay + 1e-9;
+                  const isInProgress = currentScrubDay !== null && !isComplete && item.startDay <= currentScrubDay + 1e-9;
+                  const fraction = isInProgress
+                    ? Math.max(0, Math.min(1, (currentScrubDay - item.startDay) / Math.max(0.01, item.endDay - item.startDay)))
+                    : isComplete ? 1 : 0;
+
+                  const rowOpacity = isComplete ? 0.55 : isInert ? 0.6 : 1;
+
                   return (
                     <tr
                       key={i}
-                      className="border-b transition-opacity last:border-b-0"
-                      style={{ borderColor: "#21262d", opacity: isInert ? 0.6 : 1 }}
+                      className={FEATURE_GUIDED_UI ? "border-b last:border-b-0" : "border-b transition-opacity last:border-b-0"}
+                      style={
+                        FEATURE_GUIDED_UI
+                          ? {
+                              borderColor: "#21262d",
+                              opacity: rowOpacity,
+                              borderLeft: isInProgress ? "2px solid #3b82f6" : "2px solid transparent",
+                              transition: `opacity ${DUR_BASE}ms ${EASE_OUT}, background-color ${DUR_BASE}ms ${EASE_OUT}, border-left ${DUR_BASE}ms ${EASE_OUT}`,
+                            }
+                          : { borderColor: "#21262d", opacity: isInert ? 0.6 : 1 }
+                      }
                     >
                       <td className="py-2.5 pr-3 text-right tabular-nums" style={{ color: "#8b949e" }}>
+                        {FEATURE_GUIDED_UI && isComplete && (
+                          <span className="text-[#22c55e] font-bold mr-1.5" aria-label="Completed">✓</span>
+                        )}
                         {i + 1}
                       </td>
                       <td className="py-2.5 pr-3 font-semibold text-white">{item.name}</td>
@@ -254,12 +338,29 @@ export function OptimizerBar({
                       <td className="py-2.5 pr-3 text-right font-mono tabular-nums" style={{ color: "#c9d1d9" }}>
                         {item.riskScore !== undefined ? item.riskScore.toFixed(1) : "—"}
                       </td>
-                      <td className="py-2.5 pr-3 text-right font-mono tabular-nums" style={{ color: "#c9d1d9" }}>
-                        {item.startDay}–{item.endDay}
+                      <td className="relative py-2.5 pr-3 text-right font-mono tabular-nums overflow-hidden" style={{ color: "#c9d1d9" }}>
+                        {isInProgress && fraction > 0 && (
+                          <div
+                            className="absolute inset-y-1 left-0 rounded opacity-25 pointer-events-none"
+                            style={{ width: `${fraction * 100}%`, background: "#3b82f6" }}
+                            aria-hidden="true"
+                          />
+                        )}
+                        <span className="relative z-10">{item.startDay}–{item.endDay}</span>
                       </td>
                       <td className="py-2.5 text-right font-semibold tabular-nums text-white">
                         {item.costDays !== undefined ? `${item.costDays}d` : "—"}
                       </td>
+                      {FEATURE_GUIDED_UI && (
+                        <td className="py-2.5 text-center w-14 min-w-[56px]">
+                          <div className="flex items-center justify-center">
+                            <ProgressRing
+                              fraction={fraction}
+                              state={isComplete ? "complete" : isInProgress ? "in_progress" : "pending"}
+                            />
+                          </div>
+                        </td>
+                      )}
                     </tr>
                   );
                 })}

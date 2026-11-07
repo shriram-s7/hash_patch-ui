@@ -1,0 +1,276 @@
+/* Guided-discovery system styles. Scoped to src/tour only -- index.css and
+ * its shared design tokens are never touched by this feature. Colors below
+ * intentionally mirror the app's --accent / --ink / --surface / --line
+ * tokens (read via CSS variables, since this file is imported standalone
+ * and must not assume any particular component's class names). */
+
+.tour-coachmark {
+  position: fixed;
+  z-index: 45; /* above app content (max z-40), below existing modals (z-50) */
+}
+
+.tour-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+  pointer-events: none; /* never blocks clicks on the app underneath */
+}
+
+.tour-ring {
+  position: fixed;
+  z-index: 45;
+  pointer-events: none;
+  border-radius: inherit;
+  box-shadow: 0 0 0 2px #3b82f6;
+}
+
+.tour-ring--pulse {
+  animation-name: tour-ring-pulse;
+  animation-timing-function: ease-out;
+  animation-iteration-count: 2; /* exactly twice, then holds via forwards */
+  animation-fill-mode: forwards;
+}
+
+@keyframes tour-ring-pulse {
+  0% {
+    box-shadow: 0 0 0 2px #3b82f6, 0 0 0 2px rgba(59, 130, 246, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 2px #3b82f6, 0 0 0 10px rgba(59, 130, 246, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 2px #3b82f6;
+  }
+}
+
+/* Same ring, in-flow variant: for a first-visit nudge sitting inside a
+ * normal layout (e.g. the Recommended Action authority chip) rather than
+ * portalled/positioned against the viewport like .tour-ring. Reuses the
+ * exact tour-ring-pulse keyframe -- no second pulse style. */
+.rec-chip-ring {
+  position: absolute;
+  inset: -4px;
+  border-radius: 10px;
+  pointer-events: none;
+  box-shadow: 0 0 0 2px #3b82f6;
+}
+
+.rec-chip-ring--pulse {
+  animation-name: tour-ring-pulse;
+  animation-duration: 900ms;
+  animation-timing-function: ease-out;
+  animation-iteration-count: 2;
+  animation-fill-mode: forwards;
+}
+
+/* Positioned dynamically by Coachmark.tsx via floating-ui's arrow()
+ * middleware -- inline left/top give the arrow box's exact top-left corner,
+ * already in the floating element's own coordinate space, so these rules
+ * only supply the fixed perpendicular offset (flush against the panel's
+ * facing edge) and the 45deg rotation. No centering transform here: that
+ * was the old "always centered on the anchor" assumption these classes
+ * carried before shift() could move the panel off-center from the anchor. */
+.tour-coachmark-arrow {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  background: inherit;
+  border-style: solid;
+  border-color: inherit;
+  pointer-events: none;
+}
+
+.tour-coachmark-arrow--right {
+  left: -6px;
+  transform: rotate(45deg);
+  border-width: 0 0 1px 1px;
+}
+
+.tour-coachmark-arrow--left {
+  right: -6px;
+  transform: rotate(45deg);
+  border-width: 1px 1px 0 0;
+}
+
+.tour-coachmark-arrow--top {
+  bottom: -6px;
+  transform: rotate(45deg);
+  border-width: 0 1px 1px 0;
+}
+
+.tour-coachmark-arrow--bottom {
+  top: -6px;
+  transform: rotate(45deg);
+  border-width: 1px 0 0 1px;
+}
+
+/* Part D: The Fix Card Motion */
+@keyframes fix-card-enter-right {
+  from {
+    opacity: 0;
+    transform: translateX(56%) scale(0.94);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2), 0 0 8px rgba(16, 185, 129, 0.04);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.4), 0 0 18px rgba(16, 185, 129, 0.12);
+  }
+}
+
+@keyframes fix-card-enter-left {
+  from {
+    opacity: 0;
+    transform: translateX(-56%) scale(0.94);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2), 0 0 8px rgba(16, 185, 129, 0.04);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.4), 0 0 18px rgba(16, 185, 129, 0.12);
+  }
+}
+
+@keyframes fix-card-exit-left {
+  from {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(-56%) scale(0.94);
+  }
+}
+
+@keyframes fix-card-exit-right {
+  from {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(56%) scale(0.94);
+  }
+}
+
+@keyframes fix-card-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fix-card-fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+.fix-card-incoming-initial {
+  animation: fix-card-enter-right 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.fix-card-incoming-next {
+  animation: fix-card-enter-right 420ms cubic-bezier(0.22, 1, 0.36, 1) 120ms both;
+}
+
+.fix-card-incoming-prev {
+  animation: fix-card-enter-left 420ms cubic-bezier(0.22, 1, 0.36, 1) 120ms both;
+}
+
+.fix-card-outgoing-next {
+  animation: fix-card-exit-left 260ms cubic-bezier(0.55, 0, 1, 0.45) both;
+}
+
+.fix-card-outgoing-prev {
+  animation: fix-card-exit-right 260ms cubic-bezier(0.55, 0, 1, 0.45) both;
+}
+
+.fix-card-reduced-in {
+  animation: fix-card-fade-in 120ms linear both;
+}
+
+.fix-card-reduced-out {
+  animation: fix-card-fade-out 120ms linear both;
+}
+
+@keyframes scrubber-nudge {
+  0% {
+    transform: translate(-50%, -50%);
+  }
+  50% {
+    transform: translate(calc(-50% + 36px), -50%);
+  }
+  100% {
+    transform: translate(-50%, -50%);
+  }
+}
+
+.scrubber-nudge-knob {
+  animation: scrubber-nudge 700ms cubic-bezier(0.22, 1, 0.36, 1) 1;
+}
+
+/* Toast notifications */
+@keyframes toast-enter {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -16px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+@keyframes toast-exit {
+  from {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+  to {
+    opacity: 0;
+    transform: translate(-50%, -16px);
+  }
+}
+
+@keyframes toast-drain {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
+
+.toast-box-enter {
+  animation: toast-enter 260ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.toast-box-exit {
+  animation: toast-exit 180ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.toast-drain-bar {
+  animation: toast-drain 2000ms linear forwards;
+  transform-origin: right;
+}
+
+.toast-box:hover .toast-drain-bar {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tour-ring--pulse,
+  .rec-chip-ring--pulse,
+  .fix-card-incoming-initial,
+  .fix-card-incoming-next,
+  .fix-card-incoming-prev,
+  .fix-card-outgoing-next,
+  .fix-card-outgoing-prev,
+  .scrubber-nudge-knob,
+  .toast-box-enter,
+  .toast-box-exit,
+  .toast-drain-bar {
+    animation: none !important;
+    transform: none !important;
+    opacity: 1 !important;
+  }
+}
+

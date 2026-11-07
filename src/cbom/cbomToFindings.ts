@@ -460,13 +460,127 @@ function parseContradictions(metadataProperties: RawCbomProperty[] | undefined):
     }
     if (!contraId) continue;
     const v = safeJsonParse(p.value);
+    const srcObj = v && typeof v.sourceIntent === "object" && v.sourceIntent !== null
+      ? (v.sourceIntent as Record<string, unknown>)
+      : undefined;
+    const cfgObj = v && typeof v.deployedConfig === "object" && v.deployedConfig !== null
+      ? (v.deployedConfig as Record<string, unknown>)
+      : undefined;
+
     out.push({
       id: v ? (asString(v.id) ?? contraId) : contraId,
       severity: v ? asString(v.severity) : undefined,
       description: v ? asString(v.description) : undefined,
+      sourceIntent: srcObj
+        ? {
+            format: asString(srcObj.format),
+            value: asString(srcObj.value),
+            locator: asString(srcObj.locator),
+            line: asNumber(srcObj.line),
+          }
+        : undefined,
+      deployedConfig: cfgObj
+        ? {
+            format: asString(cfgObj.format),
+            value: asString(cfgObj.value),
+            legacyReasons: Array.isArray(cfgObj.legacyReasons)
+              ? (cfgObj.legacyReasons as unknown[]).map(String)
+              : undefined,
+            locator: asString(cfgObj.locator),
+            line: asNumber(cfgObj.line),
+          }
+        : undefined,
+      declaredAlgorithm: v ? asString(v.declaredAlgorithm) : undefined,
+      implementedAlgorithm: v ? asString(v.implementedAlgorithm) : undefined,
+      declaringLocator: v ? asString(v.declaringLocator) : undefined,
+      declaringLine: v ? asNumber(v.declaringLine) : undefined,
+      callSiteLocator: v ? asString(v.callSiteLocator) : undefined,
+      callSiteLine: v ? asNumber(v.callSiteLine) : undefined,
     });
   }
   return out;
+}
+
+function contradictionToFinding(c: ContradictionEntry): Finding {
+  const occurrences: EvidenceOccurrence[] = [];
+  if (c.sourceIntent?.locator) {
+    occurrences.push({
+      locator: c.sourceIntent.locator,
+      line: c.sourceIntent.line,
+      offset: undefined,
+      column: undefined,
+      sourceType: c.sourceIntent.format ?? "source-code-intent",
+      snippet: `Code policy: ${c.sourceIntent.value ?? "strict"} (${c.sourceIntent.format ?? "source-code-intent"})`,
+    });
+  }
+  if (c.deployedConfig?.locator) {
+    occurrences.push({
+      locator: c.deployedConfig.locator,
+      line: c.deployedConfig.line,
+      offset: undefined,
+      column: undefined,
+      sourceType: c.deployedConfig.format ?? "config",
+      snippet: `Deployed config: ${c.deployedConfig.value ?? "legacy"} (${c.deployedConfig.format ?? "config"})`,
+    });
+  }
+  if (c.declaringLocator) {
+    occurrences.push({
+      locator: c.declaringLocator,
+      line: c.declaringLine,
+      offset: undefined,
+      column: undefined,
+      sourceType: "source-code",
+      snippet: `Declared algorithm: ${c.declaredAlgorithm ?? "unknown"}`,
+    });
+  }
+  if (c.callSiteLocator) {
+    occurrences.push({
+      locator: c.callSiteLocator,
+      line: c.callSiteLine,
+      offset: undefined,
+      column: undefined,
+      sourceType: "call-site",
+      snippet: `Implemented call site: ${c.implementedAlgorithm ?? "unknown"}`,
+    });
+  }
+
+  const isAlgo = Boolean(c.declaredAlgorithm && c.implementedAlgorithm);
+  const name = isAlgo
+    ? `Policy Divergence: ${c.declaredAlgorithm} vs ${c.implementedAlgorithm}`
+    : `TLS Policy Contradiction: ${c.sourceIntent?.value ?? "TLS 1.3"} vs ${c.deployedConfig?.value ?? "TLS 1.0"}`;
+
+  return {
+    id: c.id,
+    name,
+    assetType: "policy-contradiction",
+    primitive: "protocol-policy",
+    parameterSetIdentifier: undefined,
+    mode: undefined,
+    oid: undefined,
+    quantumStatus: "broken-classically",
+    reachability: "live-internal",
+    confidence: "confirmed",
+    detectorId: "contradiction-detector",
+    detectorVersion: "0.1.0",
+    evidence: occurrences,
+    shelfLife: [],
+    longestShelfLifeYears: undefined,
+    blastRadius: [],
+    findingType: "OPERATION",
+    certificate: undefined,
+    cloudKey: undefined,
+    binaryCrypto: undefined,
+    callRelation: undefined,
+    dataChain: undefined,
+    exposureState: undefined,
+    correlationStrength: undefined,
+    workload: undefined,
+    service: undefined,
+    ingress: undefined,
+    namespace: undefined,
+    tfResources: undefined,
+    evidenceChain: c.description,
+  };
 }
 
 function parseCallGraphEdges(
@@ -510,11 +624,15 @@ export function parseCbomDocument(raw: unknown): ParsedCbom {
     throw new Error("Not a valid CBOM document: 'components' is not an array.");
   }
 
+  const contradictions = parseContradictions(doc.metadata?.properties);
+  const componentFindings = (doc.components ?? []).map(componentToFinding);
+  const contradictionFindings = contradictions.map(contradictionToFinding);
+
   return {
     serialNumber: doc.serialNumber,
     timestamp: doc.metadata?.timestamp,
-    findings: (doc.components ?? []).map(componentToFinding),
-    contradictions: parseContradictions(doc.metadata?.properties),
+    findings: [...componentFindings, ...contradictionFindings],
+    contradictions,
     scannedFiles: parseScannedFiles(doc.metadata?.properties),
     callGraphEdges: parseCallGraphEdges(doc.metadata?.properties),
   };

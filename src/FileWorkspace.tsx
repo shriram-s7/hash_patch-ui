@@ -5,18 +5,536 @@ import {
   Code2,
   ChevronLeft,
   ChevronRight,
-  Wrench,
   Check,
   ArrowLeft,
   ArrowRight,
+  ChevronDown,
+  ChevronUp,
   X,
 } from "lucide-react";
 import { displayName, type Finding, type QuantumStatus } from "./cbom/types";
 import { compareFindingsPriority, computePriorityScore } from "./priority";
-import { getRecommendationForFinding } from "./pqcRecommendations";
+import { getRecommendationForFinding, type PqcRecommendation } from "./pqcRecommendations";
 import type { TreeNode } from "./repositoryTree";
 import { SERVICE_BASE_URL } from "./serviceUrl";
 import { ResizableDivider } from "./components/ResizableDivider";
+import { FEATURE_GUIDED_UI } from "./tour/flags";
+import { Coachmark } from "./tour/Coachmark";
+import { tourStore, useTourStoreState } from "./tour/store";
+import { useTourStep } from "./tour/useTourStep";
+import { useReducedMotion } from "./tour/useReducedMotion";
+import { useIsDark } from "./useIsDark";
+
+const FILE_GUTTER_DOT_TOUR_ID = "file.gutter-dot";
+const STEP_GUTTER = "file.gutter-dot.gutter";
+const STEP_ANALYSIS = "file.gutter-dot.analysis";
+const STEP_IDS = [STEP_GUTTER, STEP_ANALYSIS];
+
+const FINDING_TABS_TOUR_ID = "finding.tabs";
+const TAB_STEP_IDS = [
+  "finding.tabs.overview",
+  "finding.tabs.fix",
+  "finding.tabs.chain",
+  "finding.tabs.references",
+];
+
+// Recommended Action authority chip -- first-visit ring nudge, once per user.
+const AUTHORITY_CHIP_NUDGE_ID = "finding.authority-chip-nudge";
+
+// Contrast-verified against the card surface each theme actually renders on
+// (see FileWorkspace's flip-card review): dark label 10.39:1 / border 3.18:1,
+// light label 6.84:1 / border 3.39:1 -- all above the 4.5:1 (label) and 3:1
+// (border) WCAG AA floors. The spec's suggested border alpha (70% dark / 45%
+// light) measured under the floor once blended against the real card
+// surface, so alpha is raised here (90% / 80%) to actually clear 3:1.
+const AUTHORITY_CHIP_COLORS = {
+  dark: { bg: "#451A03", border: "rgba(180, 83, 9, 0.9)", label: "#FCD34D", icon: "#FCD34D" },
+  light: { bg: "#FFFBEB", border: "rgba(180, 83, 9, 0.8)", label: "#92400E", icon: "#92400E" },
+};
+
+/** Rotate/flip glyph -- the standard signal for "this surface flips". */
+function RotateGlyph({ style }: { style?: React.CSSProperties }) {
+  return (
+    <svg
+      width="12"
+      height="12"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      style={style}
+      aria-hidden="true"
+    >
+      <path d="M3 12a9 9 0 1 0 2.6-6.36" />
+      <path d="M3 4v5h5" />
+    </svg>
+  );
+}
+
+function parseStandardDetails(standardStr: string, algoName: string) {
+  let docId = standardStr;
+  let title = "";
+  const match = standardStr.match(/^([^(]+)(?:\(([^)]+)\))?/);
+  if (match) {
+    docId = match[1].trim();
+    title = match[2] ? match[2].trim() : "";
+  }
+  const formattedDoc = title ? `${docId} · ${title}` : docId;
+
+  let url = "https://csrc.nist.gov/publications";
+  let statusDate = "";
+  if (docId.includes("204")) {
+    url = "https://csrc.nist.gov/pubs/fips/204/final";
+    statusDate = "Final Standard · Published August 2024";
+  } else if (docId.includes("203")) {
+    url = "https://csrc.nist.gov/pubs/fips/203/final";
+    statusDate = "Final Standard · Published August 2024";
+  } else if (docId.includes("205")) {
+    url = "https://csrc.nist.gov/pubs/fips/205/final";
+    statusDate = "Final Standard · Published August 2024";
+  } else if (docId.includes("38D") || docId.includes("800-38")) {
+    url = "https://csrc.nist.gov/pubs/sp/800/38/d/final";
+    statusDate = "NIST Special Publication · SP 800-38D";
+  } else if (docId.includes("180-4")) {
+    url = "https://csrc.nist.gov/pubs/fips/180-4/final";
+  } else if (docId.includes("202")) {
+    url = "https://csrc.nist.gov/pubs/fips/202/final";
+  }
+
+  let paramReason = "";
+  const upperAlgo = (algoName || "").toUpperCase();
+  if (upperAlgo.includes("ML-DSA-65")) {
+    paramReason = "ML-DSA-65 = NIST Security Category 3 (AES-192 equivalent security)";
+  }
+
+  return { docId, formattedDoc, url, statusDate, paramReason };
+}
+
+function FixCardArrow({ findingId }: { findingId: string }) {
+  const gradId = `fix-arrow-grad-${findingId.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
+  return (
+    <div className="flex items-center justify-center px-2 w-full max-w-[150px]">
+      <svg className="w-full h-5 overflow-visible" viewBox="0 0 120 20" fill="none">
+        <defs>
+          <linearGradient id={gradId} x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="#ef4444" />
+            <stop offset="100%" stopColor="#10b981" />
+          </linearGradient>
+        </defs>
+        <line
+          x1="4"
+          y1="10"
+          x2="108"
+          y2="10"
+          stroke={`url(#${gradId})`}
+          strokeWidth="2"
+          strokeLinecap="round"
+        />
+        <path
+          d="M102 5 L112 10 L102 15"
+          stroke="#10b981"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          fill="none"
+        />
+      </svg>
+    </div>
+  );
+}
+
+interface FixCardProps {
+  finding: Finding;
+  rec: PqcRecommendation;
+  isFlipped: boolean;
+  isFlippingBack: boolean;
+  onFlip: (flip: boolean) => void;
+  isCollapsed: boolean;
+  onToggleCollapse: (collapsed: boolean) => void;
+  showAuthorityRing: boolean;
+  isDarkTheme: boolean;
+  reducedMotion: boolean;
+  className?: string;
+  style?: React.CSSProperties;
+}
+
+function FixCard({
+  finding,
+  rec,
+  isFlipped,
+  isFlippingBack,
+  onFlip,
+  isCollapsed,
+  onToggleCollapse,
+  showAuthorityRing,
+  isDarkTheme,
+  reducedMotion,
+  className = "",
+  style = {},
+}: FixCardProps) {
+  const parsedStd = parseStandardDetails(rec.standard, rec.recommendedAlgorithm);
+  const chipColors = isDarkTheme ? AUTHORITY_CHIP_COLORS.dark : AUTHORITY_CHIP_COLORS.light;
+
+  if (isCollapsed) {
+    return (
+      <div
+        className={`flex items-center justify-between w-full h-full px-4 rounded-xl border border-emerald-500/30 cursor-pointer select-none ${className}`}
+        style={{
+          background: "#0d1424",
+          boxShadow: "0 4px 12px rgba(0, 0, 0, 0.4)",
+          ...style,
+        }}
+        onClick={() => onToggleCollapse(false)}
+      >
+        <div className="flex items-center gap-2 text-xs font-mono font-semibold truncate mr-2">
+          <span className="text-red-400 font-bold">{displayName(finding)}</span>
+          <span className="text-[#8b949e]">→</span>
+          <span className="text-emerald-400 font-bold">{rec.recommendedAlgorithm}</span>
+          {parsedStd.docId && (
+            <>
+              <span className="text-[#6e7681]">·</span>
+              <span className="text-[#93a1b5] truncate">{parsedStd.docId}</span>
+            </>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleCollapse(false);
+          }}
+          className="p-1 rounded text-[#8b949e] hover:text-white hover:bg-white/5 transition-colors cursor-pointer shrink-0"
+          title="Expand fix card"
+        >
+          <ChevronUp className="h-4 w-4" />
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={`relative w-full h-full ${className}`}
+      style={{
+        perspective: "1400px",
+        ...style,
+      }}
+    >
+      <div
+        className="relative w-full h-full cursor-pointer"
+        style={{
+          transformStyle: "preserve-3d",
+          transform: isFlipped ? "rotateY(180deg)" : "rotateY(0deg)",
+          transition: reducedMotion
+            ? "none"
+            : `transform ${isFlippingBack ? 200 : 520}ms cubic-bezier(0.22, 1, 0.36, 1)`,
+        }}
+        onClick={() => {
+          if (!isFlipped) onFlip(true);
+          else onFlip(false);
+        }}
+      >
+        {/* FRONT FACE */}
+        <div
+          className="absolute inset-0 rounded-xl border p-4 flex flex-col justify-between select-none"
+          style={{
+            backfaceVisibility: "hidden",
+            WebkitBackfaceVisibility: "hidden",
+            transform: "rotateY(0deg)",
+            background: "#0c1322",
+            borderColor: "rgba(16, 185, 129, 0.3)",
+            boxShadow:
+              "0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.4), 0 0 16px rgba(16, 185, 129, 0.12)",
+          }}
+        >
+          {/* Top row */}
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold tracking-wider uppercase text-[#8b949e] font-mono">
+              REPLACE
+            </span>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleCollapse(true);
+              }}
+              className="p-1 -mr-1 -mt-1 rounded text-[#8b949e] hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
+              title="Collapse fix card"
+            >
+              <ChevronDown className="h-4 w-4" />
+            </button>
+          </div>
+
+          {/* Middle row: Display type */}
+          <div className="flex items-center justify-between my-auto gap-3">
+            {/* Old algo */}
+            <div className="flex-1 min-w-0 text-left">
+              <div className="text-lg sm:text-2xl font-black tracking-tight text-red-400 truncate">
+                {displayName(finding)}
+              </div>
+              <div className="text-[11px] text-[#8b949e] font-medium truncate mt-0.5">
+                {quantumStatusText(finding).text}
+              </div>
+            </div>
+
+            {/* Drawn SVG Arrow */}
+            <FixCardArrow findingId={finding.id} />
+
+            {/* New algo */}
+            <div className="flex-1 min-w-0 text-right">
+              <div className="text-lg sm:text-2xl font-black tracking-tight text-emerald-400 truncate">
+                {rec.recommendedAlgorithm}
+              </div>
+              <div className="text-[11px] text-[#8b949e] font-medium truncate mt-0.5">
+                {parsedStd.docId || rec.standard}
+              </div>
+            </div>
+          </div>
+
+          {/* Bottom row: Flip button */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onFlip(true);
+            }}
+            className="relative flex w-full items-center justify-center gap-2 rounded-lg py-2 text-xs font-mono font-bold uppercase tracking-wider transition-all hover:brightness-110 active:scale-[0.99] cursor-pointer"
+            style={{
+              background: chipColors.bg,
+              border: `1px solid ${chipColors.border}`,
+              color: chipColors.label,
+            }}
+          >
+            {showAuthorityRing && (
+              <span
+                className={`rec-chip-ring ${reducedMotion ? "" : "rec-chip-ring--pulse"}`}
+                aria-hidden="true"
+              />
+            )}
+            <RotateGlyph style={{ color: chipColors.icon }} />
+            Who requires this?
+          </button>
+        </div>
+
+        {/* BACK FACE */}
+        <div
+          className="absolute inset-0 rounded-xl border p-4 flex flex-col justify-between select-none"
+          style={{
+            backfaceVisibility: "hidden",
+            WebkitBackfaceVisibility: "hidden",
+            transform: "rotateY(180deg)",
+            background: "linear-gradient(135deg, #0d1224 0%, #151b33 100%)",
+            borderColor: "rgba(99, 102, 241, 0.35)",
+            boxShadow:
+              "0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 0 24px rgba(99, 102, 241, 0.15)",
+          }}
+        >
+          <div>
+            <div className="flex items-center justify-between pb-1.5 border-b border-amber-500/30">
+              <div className="text-[10px] font-bold tracking-widest uppercase text-amber-400 font-mono">
+                MANDATED BY
+              </div>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onFlip(false);
+                }}
+                className="rounded-md border border-[#30363d] px-2.5 py-0.5 text-xs font-medium text-[#c9d1d9] hover:bg-white/5 transition-colors cursor-pointer"
+              >
+                ← Back
+              </button>
+            </div>
+
+            <div className="text-base sm:text-lg font-black text-white leading-tight mt-2">
+              NIST — National Institute of Standards and Technology
+            </div>
+
+            <div className="mt-1.5 space-y-0.5">
+              <div className="text-xs sm:text-sm font-semibold text-[#e7ecf3]">
+                {parsedStd.formattedDoc}
+              </div>
+              {parsedStd.statusDate && (
+                <div className="text-[11px] text-[#93a1b5] font-mono">
+                  {parsedStd.statusDate}
+                </div>
+              )}
+              {parsedStd.paramReason && (
+                <div className="text-xs text-amber-300/90 font-medium mt-1">
+                  {parsedStd.paramReason}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="pt-2 border-t border-[#21262d] flex items-center justify-between">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                window.open(parsedStd.url, "_blank");
+              }}
+              className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-all hover:brightness-110 active:scale-[0.98] cursor-pointer"
+              style={{
+                background: "#2563eb",
+                boxShadow: "0 1px 6px rgba(37, 99, 235, 0.35)",
+              }}
+            >
+              <span>Read the standard</span>
+              <ExternalLink className="h-3 w-3" strokeWidth={2.5} />
+            </button>
+            <span className="text-[10px] text-[#6e7681]">Official federal specification</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function hasPqcReplacement(finding: Finding, rec: PqcRecommendation): boolean {
+  if (finding.quantumStatus === "quantum-safe") return false;
+  if (!rec.recommendedAlgorithm) return false;
+  return rec.recommendedAlgorithm.trim().toLowerCase() !== displayName(finding).trim().toLowerCase();
+}
+
+interface SlideTransition {
+  outgoingFinding: Finding;
+  outgoingRec: PqcRecommendation;
+  direction: "next" | "prev";
+  wasCollapsed: boolean;
+}
+
+interface FixStageProps {
+  finding: Finding;
+  rec: PqcRecommendation;
+  isFlipped: boolean;
+  isFlippingBack: boolean;
+  setIsFlipped: (flip: boolean) => void;
+  slideTransition: SlideTransition | null;
+  navDirection: "next" | "prev" | "none";
+  showAuthorityRing: boolean;
+  isDarkTheme: boolean;
+  reducedMotion: boolean;
+  isCollapsed: boolean;
+  setIsCollapsed: (collapsed: boolean) => void;
+}
+
+function FixStage({
+  finding,
+  rec,
+  isFlipped,
+  isFlippingBack,
+  setIsFlipped,
+  slideTransition,
+  navDirection,
+  showAuthorityRing,
+  isDarkTheme,
+  reducedMotion,
+  isCollapsed,
+  setIsCollapsed,
+}: FixStageProps) {
+  const currentHasReplacement = hasPqcReplacement(finding, rec);
+
+  return (
+    <div
+      className="relative w-full rounded-xl overflow-hidden border transition-[height] duration-200"
+      style={{
+        height: isCollapsed ? "48px" : "216px",
+        background: "#080c13",
+        borderColor: "#21262d",
+        boxShadow:
+          "inset 16px 0 20px -10px rgba(0,0,0,0.8), inset -16px 0 20px -10px rgba(0,0,0,0.8)",
+      }}
+    >
+      {!currentHasReplacement && !slideTransition ? (
+        <div className="flex h-full w-full items-center justify-center text-xs text-[#8b949e]">
+          No PQC replacement mapped for this finding
+        </div>
+      ) : (
+        <>
+          {slideTransition && (
+            <div
+              key={`outgoing-${slideTransition.outgoingFinding.id}`}
+              className={`absolute inset-2 ${
+                reducedMotion
+                  ? "fix-card-reduced-out"
+                  : slideTransition.direction === "next"
+                  ? "fix-card-outgoing-next"
+                  : "fix-card-outgoing-prev"
+              }`}
+            >
+              {hasPqcReplacement(slideTransition.outgoingFinding, slideTransition.outgoingRec) ? (
+                <FixCard
+                  finding={slideTransition.outgoingFinding}
+                  rec={slideTransition.outgoingRec}
+                  isFlipped={false}
+                  isFlippingBack={false}
+                  onFlip={() => {}}
+                  isCollapsed={slideTransition.wasCollapsed}
+                  onToggleCollapse={() => {}}
+                  showAuthorityRing={false}
+                  isDarkTheme={isDarkTheme}
+                  reducedMotion={reducedMotion}
+                />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center text-xs text-[#8b949e]">
+                  No PQC replacement mapped for this finding
+                </div>
+              )}
+            </div>
+          )}
+
+          {currentHasReplacement ? (
+            <div
+              key={`incoming-${finding.id}`}
+              className={`absolute inset-2 ${
+                slideTransition
+                  ? reducedMotion
+                    ? "fix-card-reduced-in"
+                    : slideTransition.direction === "next"
+                    ? "fix-card-incoming-next"
+                    : "fix-card-incoming-prev"
+                  : navDirection === "none"
+                  ? "fix-card-incoming-initial"
+                  : ""
+              }`}
+            >
+              <FixCard
+                finding={finding}
+                rec={rec}
+                isFlipped={isFlipped}
+                isFlippingBack={isFlippingBack}
+                onFlip={setIsFlipped}
+                isCollapsed={isCollapsed}
+                onToggleCollapse={setIsCollapsed}
+                showAuthorityRing={showAuthorityRing}
+                isDarkTheme={isDarkTheme}
+                reducedMotion={reducedMotion}
+              />
+            </div>
+          ) : (
+            <div
+              key={`incoming-fallback-${finding.id}`}
+              className={`absolute inset-2 flex items-center justify-center text-xs text-[#8b949e] ${
+                slideTransition
+                  ? reducedMotion
+                    ? "fix-card-reduced-in"
+                    : slideTransition.direction === "next"
+                    ? "fix-card-incoming-next"
+                    : "fix-card-incoming-prev"
+                  : ""
+              }`}
+            >
+              No PQC replacement mapped for this finding
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
 
 // Full file view's right rail: findings list (upper) + finding-detail tabs
 // (lower, collapsible) sharing one resizable panel -- see Change 2/4 of the
@@ -277,9 +795,107 @@ export function FileWorkspace({ node, findings, allFindings, sourceName }: FileW
   const [modalTab, setModalTab] = useState<BottomTab>("details");
   const [modalCopiedId, setModalCopiedId] = useState<string | null>(null);
 
+  // Part B (flip), Part C (direction), Part D (Fix Card motion)
+  const [isFlipped, setIsFlipped] = useState(false);
+  const [isFlippingBack, setIsFlippingBack] = useState(false);
+  const [navDirection, setNavDirection] = useState<"next" | "prev" | "none">("none");
+  const [slideTransition, setSlideTransition] = useState<SlideTransition | null>(null);
+
+  const tourStoreState = useTourStoreState();
+  const isCollapsed = tourStoreState.fixCardCollapsed ?? false;
+  const setIsCollapsed = (collapsed: boolean) => tourStore.setFixCardCollapsed(collapsed);
+
+  const tabFixRef = useRef<HTMLButtonElement | null>(null);
+  const tabChainRef = useRef<HTMLButtonElement | null>(null);
+  const tabRefsRef = useRef<HTMLButtonElement | null>(null);
+
+  // Authority-chip ring nudge
+  const isDarkTheme = useIsDark();
+  const reducedMotion = useReducedMotion();
+  const [authorityNudge, setAuthorityNudge] = useState<{ armed: boolean; findingId: string | null }>({
+    armed: false,
+    findingId: null,
+  });
+
+  // Part D: finding.tabs tour arms once on first finding
+  useEffect(() => {
+    if (!FEATURE_GUIDED_UI) return;
+    if (!modalOpen || modalIndex !== 0) return;
+    if (tourStore.hasSeen(FINDING_TABS_TOUR_ID)) return;
+    if (tourStore.getSnapshot().activeTour === FINDING_TABS_TOUR_ID) return;
+    tourStore.startTour(FINDING_TABS_TOUR_ID, TAB_STEP_IDS);
+  }, [modalOpen, modalIndex]);
+
+  // Follow user tab progression during finding.tabs tour
+  useEffect(() => {
+    if (!FEATURE_GUIDED_UI || !modalOpen) return;
+    const snap = tourStore.getSnapshot();
+    if (snap.activeTour !== FINDING_TABS_TOUR_ID) return;
+
+    const targetStepIndex =
+      modalTab === "details" ? 0 :
+      modalTab === "fix" ? 1 :
+      modalTab === "chain" ? 2 : 3;
+
+    if (snap.activeStepIndex !== targetStepIndex) {
+      tourStore.startTour(FINDING_TABS_TOUR_ID, TAB_STEP_IDS);
+      for (let i = 0; i < targetStepIndex; i++) {
+        tourStore.nextStep();
+      }
+    }
+  }, [modalTab, modalOpen]);
+
+  const tabTourStepInfo = useMemo(() => {
+    if (modalTab === "details") {
+      return {
+        stepId: "finding.tabs.overview",
+        anchorRef: tabFixRef,
+        nextTabId: "fix" as BottomTab,
+        title: "Suggested Fix",
+        body: "The verdict and the fix.",
+        stepN: 1,
+      };
+    }
+    if (modalTab === "fix") {
+      return {
+        stepId: "finding.tabs.fix",
+        anchorRef: tabChainRef,
+        nextTabId: "chain" as BottomTab,
+        title: "Call Chain",
+        body: "Copy-ready replacement code.",
+        stepN: 2,
+      };
+    }
+    if (modalTab === "chain") {
+      return {
+        stepId: "finding.tabs.chain",
+        anchorRef: tabRefsRef,
+        nextTabId: "references" as BottomTab,
+        title: "References",
+        body: "How execution reaches this line.",
+        stepN: 3,
+      };
+    }
+    if (modalTab === "references") {
+      return {
+        stepId: "finding.tabs.references",
+        anchorRef: tabRefsRef,
+        nextTabId: "references" as BottomTab,
+        title: "Traceability",
+        body: "Every claim, traceable.",
+        stepN: 4,
+      };
+    }
+    return null;
+  }, [modalTab]);
+
   const openModal = (idx: number) => {
     setModalIndex(idx);
     setModalTab("details");
+    setIsFlipped(false);
+    setIsFlippingBack(false);
+    setSlideTransition(null);
+    setNavDirection("none");
     setModalOpen(true);
   };
 
@@ -313,6 +929,80 @@ export function FileWorkspace({ node, findings, allFindings, sourceName }: FileW
   const [loading, setLoading] = useState(true);
   const [sourceIsFallback, setSourceIsFallback] = useState(false);
   const lineRefs = useRef<Map<number, HTMLDivElement>>(new Map());
+
+  // Guided tour refs and step states (additive only)
+  const firstGutterRef = useRef<HTMLSpanElement>(null);
+  const firstViewAnalysisRef = useRef<HTMLButtonElement>(null);
+  const codeScrollRef = useRef<HTMLDivElement>(null);
+
+  const showGutterStep = useTourStep(STEP_GUTTER);
+  const showAnalysisStep = useTourStep(STEP_ANALYSIS);
+
+  // Arm tour on first entry to this view only -- if zero findings, does not arm
+  useEffect(() => {
+    if (!FEATURE_GUIDED_UI) return;
+    if (sortedFindings.length === 0) return;
+    if (tourStore.hasSeen(FILE_GUTTER_DOT_TOUR_ID)) return;
+    if (tourStore.getSnapshot().activeTour) return;
+    tourStore.startTour(FILE_GUTTER_DOT_TOUR_ID, STEP_IDS);
+  }, [sortedFindings.length]);
+
+  // Step 1: scroll to first flagged line if out of view, wait for settle, then anchor
+  const [gutterReady, setGutterReady] = useState(false);
+
+  useEffect(() => {
+    if (!showGutterStep) {
+      setGutterReady(false);
+      return;
+    }
+    if (!firstGutterRef.current) return;
+
+    const el = firstGutterRef.current;
+    const container = codeScrollRef.current;
+    if (!container) {
+      setGutterReady(true);
+      return;
+    }
+
+    const cRect = container.getBoundingClientRect();
+    const eRect = el.getBoundingClientRect();
+    const inView = eRect.top >= cRect.top && eRect.bottom <= cRect.bottom;
+
+    if (inView) {
+      setGutterReady(true);
+      return;
+    }
+
+    setGutterReady(false);
+    el.scrollIntoView({ block: "center", behavior: "smooth" });
+
+    let timer: ReturnType<typeof setTimeout>;
+    const onSettle = () => {
+      clearTimeout(timer);
+      setGutterReady(true);
+    };
+
+    container.addEventListener("scrollend", onSettle, { once: true });
+    timer = setTimeout(onSettle, 350);
+
+    return () => {
+      container.removeEventListener("scrollend", onSettle);
+      clearTimeout(timer);
+    };
+  }, [showGutterStep, loading]);
+
+  // Direct click listener on first View Analysis button: hands off to finding.tabs if tour is running
+  useEffect(() => {
+    const el = firstViewAnalysisRef.current;
+    if (!el) return;
+    const onRealClick = () => {
+      if (tourStore.getSnapshot().activeTour === FILE_GUTTER_DOT_TOUR_ID) {
+        tourStore.handoffTour(FINDING_TABS_TOUR_ID, TAB_STEP_IDS);
+      }
+    };
+    el.addEventListener("click", onRealClick);
+    return () => el.removeEventListener("click", onRealClick);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -373,6 +1063,28 @@ export function FileWorkspace({ node, findings, allFindings, sourceName }: FileW
     return map;
   }, [findings, node]);
 
+  // Identify the first flagged line and primary finding
+  const firstFindingLine = useMemo(() => {
+    if (lineToFindings.size === 0) return null;
+    const nums = Array.from(lineToFindings.keys());
+    return Math.min(...nums);
+  }, [lineToFindings]);
+
+  const firstFinding = useMemo(() => {
+    if (firstFindingLine === null) return null;
+    return lineToFindings.get(firstFindingLine)?.[0] ?? null;
+  }, [firstFindingLine, lineToFindings]);
+
+  const gutterBodyCopy = useMemo(() => {
+    if (!firstFinding) {
+      return "Each marker is a cryptographic operation the scanner resolved to a real API call — not a text match.";
+    }
+    const name = displayName(firstFinding);
+    const cat = firstFinding.primitive ? (CATEGORY_LABEL[firstFinding.primitive] || firstFinding.primitive) : "";
+    const desc = cat && !name.toLowerCase().includes(cat.toLowerCase()) ? `${name} (${cat})` : name;
+    return `Each marker is a cryptographic operation the scanner resolved to a real API call — not a text match. Line ${firstFindingLine ?? "—"} here is a ${desc}.`;
+  }, [firstFinding, firstFindingLine]);
+
   const lines = useMemo(() => (sourceCode === null ? [] : sourceCode.split(/\r?\n/)), [sourceCode]);
 
   const relPath = (node.fullPath || node.path || node.name).replace(/\\/g, "/");
@@ -413,6 +1125,90 @@ export function FileWorkspace({ node, findings, allFindings, sourceName }: FileW
   const accentCol = modalFinding ? getDotColor(modalFinding.quantumStatus) : "#3b82f6";
   const modalTotal = sortedForList.length;
   const total = modalTotal;
+
+  const navigateToFinding = (targetIdx: number) => {
+    if (targetIdx === modalIndex || targetIdx < 0 || targetIdx >= sortedForList.length) return;
+    const targetDir = targetIdx > modalIndex ? "next" : "prev";
+    const currentF = sortedForList[modalIndex];
+    const currentR = currentF ? getRecommendationForFinding(currentF, getFindingOccurrenceInFile(currentF, node)?.snippet ?? "") : null;
+    const isCurrentlyCollapsed = tourStore.getSnapshot().fixCardCollapsed ?? false;
+
+    if (isFlipped) {
+      setIsFlippingBack(true);
+      setIsFlipped(false);
+      setTimeout(() => {
+        setIsFlippingBack(false);
+        setNavDirection(targetDir);
+        if (currentF && currentR) {
+          setSlideTransition({
+            outgoingFinding: currentF,
+            outgoingRec: currentR,
+            direction: targetDir,
+            wasCollapsed: isCurrentlyCollapsed,
+          });
+        }
+        setModalIndex(targetIdx);
+        setModalTab("details");
+      }, 200);
+    } else {
+      setNavDirection(targetDir);
+      if (currentF && currentR) {
+        setSlideTransition({
+          outgoingFinding: currentF,
+          outgoingRec: currentR,
+          direction: targetDir,
+          wasCollapsed: isCurrentlyCollapsed,
+        });
+      }
+      setModalIndex(targetIdx);
+      setModalTab("details");
+    }
+  };
+
+  useEffect(() => {
+    if (!slideTransition) return;
+    const timer = setTimeout(() => {
+      setSlideTransition(null);
+    }, 560);
+    return () => clearTimeout(timer);
+  }, [slideTransition]);
+
+  useEffect(() => {
+    if (!modalOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) {
+        return;
+      }
+      if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        navigateToFinding(modalIndex - 1);
+      } else if (e.key === "ArrowRight") {
+        e.preventDefault();
+        navigateToFinding(modalIndex + 1);
+      } else if (e.key === "Escape") {
+        setModalOpen(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [modalOpen, modalIndex, isFlipped, sortedForList.length]);
+
+  // Arm the authority-chip ring nudge once, ever, for the first qualifying
+  // finding the user sees -- markSeen fires immediately so no later finding
+  // (this session or a future one) re-triggers it.
+  useEffect(() => {
+    if (!FEATURE_GUIDED_UI || !modalOpen) return;
+    if (!modalRec?.standard) return;
+    if (tourStore.hasSeen(AUTHORITY_CHIP_NUDGE_ID)) return;
+    setAuthorityNudge({ armed: true, findingId: modalFinding?.id ?? null });
+    tourStore.markSeen(AUTHORITY_CHIP_NUDGE_ID);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modalOpen, modalFinding?.id, modalRec?.standard]);
+
+  const showAuthorityRing =
+    authorityNudge.armed && authorityNudge.findingId === modalFinding?.id && !isFlipped;
+
   const MODAL_TABS: [BottomTab, string][] = [
     ["details", "Overview"],
     ["fix", "Suggested Fix"],
@@ -551,7 +1347,7 @@ export function FileWorkspace({ node, findings, allFindings, sourceName }: FileW
                 </dl>
               </div>
             ) : (
-              <div className="relative min-h-0 flex-1 overflow-auto font-mono text-xs" style={{ background: "#0d1117" }}>
+              <div ref={codeScrollRef} className="relative min-h-0 flex-1 overflow-auto font-mono text-xs" style={{ background: "#0d1117" }}>
                 {loading ? (
                   <div className="flex h-full items-center justify-center p-8" style={{ color: "#8b949e" }}>
                     Loading source code…
@@ -597,6 +1393,7 @@ export function FileWorkspace({ node, findings, allFindings, sourceName }: FileW
                             {primaryFinding && (
                               <>
                                 <span
+                                  ref={lineNum === firstFindingLine ? firstGutterRef : undefined}
                                   className="h-1.5 w-1.5 shrink-0 rounded-full"
                                   style={{ background: getDotColor(primaryFinding.quantumStatus) }}
                                 />
@@ -747,6 +1544,7 @@ export function FileWorkspace({ node, findings, allFindings, sourceName }: FileW
                         {/* View Analysis CTA — prominent green button always visible */}
                         <div className="flex items-center gap-2 px-3.5 pb-3">
                           <button
+                            ref={sortedIdx === 0 ? firstViewAnalysisRef : undefined}
                             type="button"
                             onClick={() => openModal(sortedIdx)}
                             className="flex flex-1 items-center justify-center gap-1.5 rounded-md py-1.5 text-[11px] font-semibold text-white transition-all hover:brightness-110 active:scale-[0.98]"
@@ -834,9 +1632,9 @@ export function FileWorkspace({ node, findings, allFindings, sourceName }: FileW
                   <div className="flex items-center gap-1">
                     <button
                       type="button"
-                      onClick={() => { setModalIndex((i) => Math.max(0, i - 1)); setModalTab("details"); }}
+                      onClick={() => navigateToFinding(modalIndex - 1)}
                       disabled={modalIndex === 0}
-                      className="flex h-7 w-7 items-center justify-center rounded-md border transition-colors disabled:opacity-30"
+                      className="flex h-7 w-7 items-center justify-center rounded-md border transition-colors disabled:opacity-30 cursor-pointer"
                       style={{ borderColor: "#30363d", background: "#0d1117", color: "#c9d1d9" }}
                       title="Previous finding"
                     >
@@ -847,9 +1645,9 @@ export function FileWorkspace({ node, findings, allFindings, sourceName }: FileW
                     </span>
                     <button
                       type="button"
-                      onClick={() => { setModalIndex((i) => Math.min(total - 1, i + 1)); setModalTab("details"); }}
+                      onClick={() => navigateToFinding(modalIndex + 1)}
                       disabled={modalIndex === total - 1}
-                      className="flex h-7 w-7 items-center justify-center rounded-md border transition-colors disabled:opacity-30"
+                      className="flex h-7 w-7 items-center justify-center rounded-md border transition-colors disabled:opacity-30 cursor-pointer"
                       style={{ borderColor: "#30363d", background: "#0d1117", color: "#c9d1d9" }}
                       title="Next finding"
                     >
@@ -859,7 +1657,7 @@ export function FileWorkspace({ node, findings, allFindings, sourceName }: FileW
                   <button
                     type="button"
                     onClick={() => setModalOpen(false)}
-                    className="flex h-8 w-8 items-center justify-center rounded-lg border transition-colors hover:bg-white/5"
+                    className="flex h-8 w-8 items-center justify-center rounded-lg border transition-colors hover:bg-white/5 cursor-pointer"
                     style={{ borderColor: "#30363d", color: "#8b949e" }}
                     title="Close"
                   >
@@ -878,8 +1676,8 @@ export function FileWorkspace({ node, findings, allFindings, sourceName }: FileW
                     <button
                       key={ff.id}
                       type="button"
-                      onClick={() => { setModalIndex(idx); setModalTab("details"); }}
-                      className="shrink-0 rounded-full border px-2.5 py-0.5 text-[10px] font-semibold transition-all"
+                      onClick={() => navigateToFinding(idx)}
+                      className="shrink-0 rounded-full border px-2.5 py-0.5 text-[10px] font-semibold transition-all cursor-pointer"
                       style={{
                         borderColor: idx === modalIndex ? accentCol : "#30363d",
                         background: idx === modalIndex ? `${accentCol}22` : "transparent",
@@ -900,6 +1698,11 @@ export function FileWorkspace({ node, findings, allFindings, sourceName }: FileW
                 {MODAL_TABS.map(([id, label]) => (
                   <button
                     key={id}
+                    ref={(el) => {
+                      if (id === "fix") tabFixRef.current = el;
+                      else if (id === "chain") tabChainRef.current = el;
+                      else if (id === "references") tabRefsRef.current = el;
+                    }}
                     type="button"
                     onClick={() => setModalTab(id)}
                     className={`shrink-0 rounded-md px-3.5 py-1.5 text-xs font-semibold transition-colors ${
@@ -934,166 +1737,206 @@ export function FileWorkspace({ node, findings, allFindings, sourceName }: FileW
               {/* Tab content */}
               <div className="min-h-0 flex-1 overflow-y-auto p-6" style={{ background: "#0d1117" }}>
 
-                {modalTab === "details" && (
-                  <div className="space-y-5">
-                    {/* Summary row */}
-                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                      {[
-                        { label: "Algorithm", value: displayName(modalFinding), color: "#f0f6fc" },
-                        { label: "Category", value: categoryLabel(modalFinding), color: "#f0f6fc" },
-                        { label: "Quantum Status", value: quantumStatusText(modalFinding).text, color: quantumStatusText(modalFinding).color },
-                        { label: "Reachability", value: reachabilityText(modalFinding).text, color: reachabilityText(modalFinding).color },
-                      ].map(({ label, value, color }) => (
-                        <div key={label} className="rounded-xl border p-3" style={{ borderColor: "#21262d", background: "#161b22" }}>
-                          <div className="text-[10px] uppercase tracking-wide font-semibold" style={{ color: "#6e7681" }}>{label}</div>
-                          <div className="mt-1 text-sm font-bold" style={{ color }}>{value}</div>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Description */}
-                    <div className="rounded-xl border p-4" style={{ borderColor: "#21262d", background: "#161b22" }}>
-                      <div className="text-[11px] font-semibold uppercase tracking-wide mb-2" style={{ color: "#8b949e" }}>Why it matters</div>
-                      <p className="text-sm leading-relaxed" style={{ color: "#c9d1d9" }}>
-                        {modalRec.vulnerabilityReason}
-                      </p>
-                      {modalRec.migrationNote && (
-                        <p className="mt-2 text-xs leading-relaxed" style={{ color: "#8b949e" }}>
-                          {modalRec.migrationNote}
-                        </p>
-                      )}
-                    </div>
-
-                    {/* Recommendation summary */}
-                    <div className="rounded-xl border p-4" style={{ borderColor: "rgba(34,197,94,0.3)", background: "rgba(34,197,94,0.06)" }}>
-                      <div className="text-[11px] font-semibold uppercase tracking-wide mb-3 flex items-center gap-1.5" style={{ color: "#22c55e" }}>
-                        <Wrench className="h-3.5 w-3.5" strokeWidth={2} /> Recommended Action
+                {/* Overview tab */}
+                <div
+                  style={{
+                    display: !FEATURE_GUIDED_UI ? (modalTab === "details" ? "block" : "none") : (modalTab === "details" ? "block" : "none"),
+                  }}
+                  className="space-y-5"
+                >
+                  {/* Summary row */}
+                  <div
+                    className={`grid gap-3 ${
+                      FEATURE_GUIDED_UI
+                        ? "grid-cols-2 sm:grid-cols-3 lg:grid-cols-5"
+                        : "grid-cols-2 sm:grid-cols-4"
+                    }`}
+                  >
+                    {[
+                      { label: "Algorithm", value: displayName(modalFinding), color: "#f0f6fc" },
+                      { label: "Category", value: categoryLabel(modalFinding), color: "#f0f6fc" },
+                      { label: "Quantum Status", value: quantumStatusText(modalFinding).text, color: quantumStatusText(modalFinding).color },
+                      { label: "Reachability", value: reachabilityText(modalFinding).text, color: reachabilityText(modalFinding).color },
+                      ...(FEATURE_GUIDED_UI
+                        ? [{ label: "Replace With", value: modalRec.recommendedAlgorithm, color: "#f0f6fc" }]
+                        : []),
+                    ].map(({ label, value, color }) => (
+                      <div key={label} className="rounded-xl border p-3" style={{ borderColor: "#21262d", background: "#161b22" }}>
+                        <div className="text-[10px] uppercase tracking-wide font-semibold" style={{ color: "#6e7681" }}>{label}</div>
+                        <div className="mt-1 text-sm font-bold truncate" style={{ color }}>{value}</div>
                       </div>
-                      <div className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-3">
+                    ))}
+                  </div>
+
+                  {/* Description */}
+                  <div className="rounded-xl border p-4" style={{ borderColor: "#21262d", background: "#161b22" }}>
+                    <div className="text-[11px] font-semibold uppercase tracking-wide mb-2" style={{ color: "#8b949e" }}>Why it matters</div>
+                    <p className="text-sm leading-relaxed" style={{ color: "#c9d1d9" }}>
+                      {modalRec.vulnerabilityReason}
+                    </p>
+                    {modalRec.migrationNote && (
+                      <p className="mt-2 text-xs leading-relaxed" style={{ color: "#8b949e" }}>
+                        {modalRec.migrationNote}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Recommendation summary — Fix Stage when FEATURE_GUIDED_UI, or original block when disabled */}
+                  {!FEATURE_GUIDED_UI ? (
+                    <div className="rounded-xl border p-4" style={{ borderColor: "rgba(34,197,94,0.3)", background: "rgba(34,197,94,0.06)" }}>
+                      <div className="text-xs uppercase tracking-wide font-semibold mb-2" style={{ color: "#22c55e" }}>Recommended Action</div>
+                      <div className="flex items-center gap-3 text-sm">
                         <div>
-                          <span className="text-[10px] uppercase tracking-wide block mb-0.5" style={{ color: "#6e7681" }}>Replace</span>
-                          <span className="font-bold" style={{ color: "#ef4444" }}>{displayName(modalFinding)}</span>
+                          <span className="text-[10px] uppercase tracking-wide block mb-0.5" style={{ color: "#8b949e" }}>Replace</span>
+                          <span className="font-semibold text-white">{displayName(modalFinding)}</span>
                         </div>
-                        <div className="flex items-center" style={{ color: "#484f58" }}>→</div>
+                        <div style={{ color: "#8b949e" }}>→</div>
                         <div>
-                          <span className="text-[10px] uppercase tracking-wide block mb-0.5" style={{ color: "#6e7681" }}>With</span>
+                          <span className="text-[10px] uppercase tracking-wide block mb-0.5" style={{ color: "#8b949e" }}>With</span>
                           <span className="font-bold" style={{ color: "#22c55e" }}>{modalRec.recommendedAlgorithm}</span>
                         </div>
                       </div>
                       <div className="mt-2 text-xs" style={{ color: "#8b949e" }}>Standard: <span style={{ color: "#3b82f6" }}>{modalRec.standard}</span></div>
                     </div>
-                  </div>
-                )}
+                  ) : (
+                    <FixStage
+                      finding={modalFinding}
+                      rec={modalRec}
+                      isFlipped={isFlipped}
+                      isFlippingBack={isFlippingBack}
+                      setIsFlipped={setIsFlipped}
+                      slideTransition={slideTransition}
+                      navDirection={navDirection}
+                      showAuthorityRing={showAuthorityRing}
+                      isDarkTheme={isDarkTheme}
+                      reducedMotion={reducedMotion}
+                      isCollapsed={isCollapsed}
+                      setIsCollapsed={setIsCollapsed}
+                    />
+                  )}
+                </div>
 
-                {modalTab === "fix" && (
-                  <div className="space-y-4">
-                    {/* Vulnerable snippet */}
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-[11px] uppercase tracking-wide font-semibold" style={{ color: "#ef4444" }}>⚠ Vulnerable Code (Line {modalOcc?.line ?? "—"})</span>
-                      </div>
-                      <pre
-                        className="rounded-xl border p-4 overflow-x-auto font-mono text-xs leading-relaxed whitespace-pre-wrap"
-                        style={{ borderColor: "rgba(239,68,68,0.3)", background: "rgba(239,68,68,0.06)", color: "#fca5a5" }}
-                      >
-                        {modalOcc?.snippet ?? lines[(modalOcc?.line ?? 1) - 1] ?? "— snippet unavailable —"}
-                      </pre>
+                {/* Suggested Fix tab */}
+                <div
+                  style={{
+                    display: modalTab === "fix" ? "block" : "none",
+                  }}
+                  className="space-y-4"
+                >
+                  {/* Vulnerable snippet */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[11px] uppercase tracking-wide font-semibold" style={{ color: "#ef4444" }}>⚠ Vulnerable Code (Line {modalOcc?.line ?? "—"})</span>
                     </div>
-
-                    {/* Replacement */}
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-[11px] uppercase tracking-wide font-semibold" style={{ color: "#22c55e" }}>✓ Proposed Replacement — {modalRec.recommendedAlgorithm}</span>
-                        <button
-                          type="button"
-                          onClick={() => copyToClipboard(modalRec.replacementCode, () => { setModalCopiedId(modalFinding.id); setTimeout(() => setModalCopiedId(null), 1800); })}
-                          className="flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-[11px] font-semibold transition-colors hover:bg-white/5"
-                          style={{ borderColor: "#30363d", color: modalCopiedId === modalFinding.id ? "#22c55e" : "#c9d1d9" }}
-                        >
-                          {modalCopiedId === modalFinding.id ? <Check className="h-3 w-3" strokeWidth={2.5} /> : <Copy className="h-3 w-3" strokeWidth={2} />}
-                          {modalCopiedId === modalFinding.id ? "Copied!" : "Copy"}
-                        </button>
-                      </div>
-                      <pre
-                        className="rounded-xl border p-4 overflow-x-auto font-mono text-xs leading-relaxed whitespace-pre-wrap"
-                        style={{ borderColor: "rgba(34,197,94,0.3)", background: "rgba(34,197,94,0.06)", color: "#86efac" }}
-                      >
-                        {modalRec.replacementCode}
-                      </pre>
-                      {modalRec.migrationNote && (
-                        <p className="mt-2 text-xs leading-relaxed" style={{ color: "#8b949e" }}>{modalRec.migrationNote}</p>
-                      )}
-                    </div>
-
-                    {/* Copy all button */}
-                    <button
-                      type="button"
-                      onClick={() => copyToClipboard(modalRec.replacementCode, () => { setModalCopiedId(modalFinding.id + "_all"); setTimeout(() => setModalCopiedId(null), 1800); })}
-                      className="flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-bold text-white transition-all hover:brightness-110 active:scale-[0.98]"
-                      style={{ background: "linear-gradient(135deg, #16a34a 0%, #15803d 100%)", boxShadow: "0 4px 12px rgba(22,163,74,0.3)" }}
+                    <pre
+                      className="rounded-xl border p-4 overflow-x-auto font-mono text-xs leading-relaxed whitespace-pre-wrap"
+                      style={{ borderColor: "rgba(239,68,68,0.3)", background: "rgba(239,68,68,0.06)", color: "#fca5a5" }}
                     >
-                      <Copy className="h-4 w-4" strokeWidth={2} />
-                      {modalCopiedId === modalFinding.id + "_all" ? "Copied to clipboard!" : "Copy Replacement Code"}
-                    </button>
+                      {modalOcc?.snippet ?? lines[(modalOcc?.line ?? 1) - 1] ?? "— snippet unavailable —"}
+                    </pre>
                   </div>
-                )}
 
-                {modalTab === "chain" && (
-                  <div className="space-y-4 text-sm">
-                    {(modalFinding.callRelation?.callers?.length ?? 0) === 0 && (modalFinding.callRelation?.callees?.length ?? 0) === 0 ? (
-                      <p className="text-sm" style={{ color: "#8b949e" }}>No call-graph relationships recorded for this finding.</p>
-                    ) : (
-                      <>
-                        {(modalFinding.callRelation?.callers?.length ?? 0) > 0 && (
-                          <div>
-                            <div className="text-[11px] uppercase tracking-wide mb-2" style={{ color: "#6e7681" }}>Called by</div>
-                            <div className="space-y-1.5">
-                              {modalFinding.callRelation!.callers.map((id) => (
-                                <div key={id} className="rounded-lg border px-3 py-2" style={{ borderColor: "#21262d", background: "#161b22", color: "#c9d1d9" }}>
-                                  {findingsById.get(id) ? displayName(findingsById.get(id)!) : id}
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                        {(modalFinding.callRelation?.callees?.length ?? 0) > 0 && (
-                          <div>
-                            <div className="text-[11px] uppercase tracking-wide mb-2" style={{ color: "#6e7681" }}>Calls</div>
-                            <div className="space-y-1.5">
-                              {modalFinding.callRelation!.callees.map((id) => (
-                                <div key={id} className="rounded-lg border px-3 py-2" style={{ borderColor: "#21262d", background: "#161b22", color: "#c9d1d9" }}>
-                                  {findingsById.get(id) ? displayName(findingsById.get(id)!) : id}
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </div>
-                )}
-
-                {modalTab === "references" && (
-                  <div className="space-y-3 text-sm">
-                    {modalFinding.shelfLife.length === 0 ? (
-                      <p style={{ color: "#8b949e" }}>No statutory or shelf-life reference data for this finding.</p>
-                    ) : (
-                      modalFinding.shelfLife.map((s, i) => (
-                        <div key={i} className="rounded-xl border p-4" style={{ borderColor: "#21262d", background: "#161b22" }}>
-                          <div className="font-bold text-white">{s.category}</div>
-                          {s.shelfLifeYears !== undefined && <div className="mt-0.5 text-xs" style={{ color: "#8b949e" }}>Shelf life: {s.shelfLifeYears} years</div>}
-                          {s.statutoryBasis && <div className="text-xs" style={{ color: "#8b949e" }}>Basis: {s.statutoryBasis}</div>}
-                          {s.confidence && <div className="text-xs" style={{ color: "#8b949e" }}>Confidence: {s.confidence}</div>}
-                          {s.moscaNote && <div className="mt-1.5 text-xs leading-relaxed" style={{ color: "#c9d1d9" }}>{s.moscaNote}</div>}
-                        </div>
-                      ))
-                    )}
-                    <div className="rounded-xl border p-4" style={{ borderColor: "#21262d", background: "#161b22" }}>
-                      <div className="text-[11px] uppercase tracking-wide mb-1" style={{ color: "#6e7681" }}>Standard</div>
-                      <p style={{ color: "#c9d1d9" }}>{modalRec.standard}</p>
+                  {/* Replacement */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[11px] uppercase tracking-wide font-semibold" style={{ color: "#22c55e" }}>✓ Proposed Replacement — {modalRec.recommendedAlgorithm}</span>
+                      <button
+                        type="button"
+                        onClick={() => copyToClipboard(modalRec.replacementCode, () => { setModalCopiedId(modalFinding.id); setTimeout(() => setModalCopiedId(null), 1800); })}
+                        className="flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-[11px] font-semibold transition-colors hover:bg-white/5"
+                        style={{ borderColor: "#30363d", color: modalCopiedId === modalFinding.id ? "#22c55e" : "#c9d1d9" }}
+                      >
+                        {modalCopiedId === modalFinding.id ? <Check className="h-3 w-3" strokeWidth={2.5} /> : <Copy className="h-3 w-3" strokeWidth={2} />}
+                        {modalCopiedId === modalFinding.id ? "Copied!" : "Copy"}
+                      </button>
                     </div>
+                    <pre
+                      className="rounded-xl border p-4 overflow-x-auto font-mono text-xs leading-relaxed whitespace-pre-wrap"
+                      style={{ borderColor: "rgba(34,197,94,0.3)", background: "rgba(34,197,94,0.06)", color: "#86efac" }}
+                    >
+                      {modalRec.replacementCode}
+                    </pre>
+                    {modalRec.migrationNote && (
+                      <p className="mt-2 text-xs leading-relaxed" style={{ color: "#8b949e" }}>{modalRec.migrationNote}</p>
+                    )}
                   </div>
-                )}
+
+                  {/* Copy all button */}
+                  <button
+                    type="button"
+                    onClick={() => copyToClipboard(modalRec.replacementCode, () => { setModalCopiedId(modalFinding.id + "_all"); setTimeout(() => setModalCopiedId(null), 1800); })}
+                    className="flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-bold text-white transition-all hover:brightness-110 active:scale-[0.98]"
+                    style={{ background: "linear-gradient(135deg, #16a34a 0%, #15803d 100%)", boxShadow: "0 4px 12px rgba(22,163,74,0.3)" }}
+                  >
+                    <Copy className="h-4 w-4" strokeWidth={2} />
+                    {modalCopiedId === modalFinding.id + "_all" ? "Copied to clipboard!" : "Copy Replacement Code"}
+                  </button>
+                </div>
+
+                {/* Call Chain tab */}
+                <div
+                  style={{
+                    display: modalTab === "chain" ? "block" : "none",
+                  }}
+                  className="space-y-4 text-sm"
+                >
+                  {(modalFinding.callRelation?.callers?.length ?? 0) === 0 && (modalFinding.callRelation?.callees?.length ?? 0) === 0 ? (
+                    <p className="text-sm" style={{ color: "#8b949e" }}>No call-graph relationships recorded for this finding.</p>
+                  ) : (
+                    <>
+                      {(modalFinding.callRelation?.callers?.length ?? 0) > 0 && (
+                        <div>
+                          <div className="text-[11px] uppercase tracking-wide mb-2" style={{ color: "#6e7681" }}>Called by</div>
+                          <div className="space-y-1.5">
+                            {modalFinding.callRelation!.callers.map((id) => (
+                              <div key={id} className="rounded-lg border px-3 py-2" style={{ borderColor: "#21262d", background: "#161b22", color: "#c9d1d9" }}>
+                                {findingsById.get(id) ? displayName(findingsById.get(id)!) : id}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {(modalFinding.callRelation?.callees?.length ?? 0) > 0 && (
+                        <div>
+                          <div className="text-[11px] uppercase tracking-wide mb-2" style={{ color: "#6e7681" }}>Calls</div>
+                          <div className="space-y-1.5">
+                            {modalFinding.callRelation!.callees.map((id) => (
+                              <div key={id} className="rounded-lg border px-3 py-2" style={{ borderColor: "#21262d", background: "#161b22", color: "#c9d1d9" }}>
+                                {findingsById.get(id) ? displayName(findingsById.get(id)!) : id}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+
+                {/* References tab */}
+                <div
+                  style={{
+                    display: modalTab === "references" ? "block" : "none",
+                  }}
+                  className="space-y-3 text-sm"
+                >
+                  {modalFinding.shelfLife.length === 0 ? (
+                    <p style={{ color: "#8b949e" }}>No statutory or shelf-life reference data for this finding.</p>
+                  ) : (
+                    modalFinding.shelfLife.map((s, i) => (
+                      <div key={i} className="rounded-xl border p-4" style={{ borderColor: "#21262d", background: "#161b22" }}>
+                        <div className="font-bold text-white">{s.category}</div>
+                        {s.shelfLifeYears !== undefined && <div className="mt-0.5 text-xs" style={{ color: "#8b949e" }}>Shelf life: {s.shelfLifeYears} years</div>}
+                        {s.statutoryBasis && <div className="text-xs" style={{ color: "#8b949e" }}>Basis: {s.statutoryBasis}</div>}
+                        {s.confidence && <div className="text-xs" style={{ color: "#8b949e" }}>Confidence: {s.confidence}</div>}
+                        {s.moscaNote && <div className="mt-1.5 text-xs leading-relaxed" style={{ color: "#c9d1d9" }}>{s.moscaNote}</div>}
+                      </div>
+                    ))
+                  )}
+                  <div className="rounded-xl border p-4" style={{ borderColor: "#21262d", background: "#161b22" }}>
+                    <div className="text-[11px] uppercase tracking-wide mb-1" style={{ color: "#6e7681" }}>Standard</div>
+                    <p style={{ color: "#c9d1d9" }}>{modalRec.standard}</p>
+                  </div>
+                </div>
 
               </div>
 
@@ -1105,9 +1948,9 @@ export function FileWorkspace({ node, findings, allFindings, sourceName }: FileW
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => { setModalIndex((i) => Math.max(0, i - 1)); setModalTab("details"); }}
+                    onClick={() => navigateToFinding(modalIndex - 1)}
                     disabled={modalIndex === 0}
-                    className="flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-semibold transition-colors disabled:opacity-30 hover:bg-white/5"
+                    className="flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-semibold transition-colors disabled:opacity-30 hover:bg-white/5 cursor-pointer"
                     style={{ borderColor: "#30363d", color: "#c9d1d9" }}
                   >
                     <ArrowLeft className="h-3.5 w-3.5" strokeWidth={2} />
@@ -1115,9 +1958,9 @@ export function FileWorkspace({ node, findings, allFindings, sourceName }: FileW
                   </button>
                   <button
                     type="button"
-                    onClick={() => { setModalIndex((i) => Math.min(total - 1, i + 1)); setModalTab("details"); }}
+                    onClick={() => navigateToFinding(modalIndex + 1)}
                     disabled={modalIndex === total - 1}
-                    className="flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-semibold transition-colors disabled:opacity-30 hover:bg-white/5"
+                    className="flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-semibold transition-colors disabled:opacity-30 hover:bg-white/5 cursor-pointer"
                     style={{ borderColor: "#30363d", color: "#c9d1d9" }}
                   >
                     Next
@@ -1136,6 +1979,70 @@ export function FileWorkspace({ node, findings, allFindings, sourceName }: FileW
             </div>
           </div>
         )}
+
+      {FEATURE_GUIDED_UI && showGutterStep && gutterReady && (
+        <Coachmark
+          id={STEP_GUTTER}
+          anchorRef={firstGutterRef}
+          placement="right"
+          title="Flagged lines"
+          body={gutterBodyCopy}
+          step={[1, 2]}
+          nextLabel="Next →"
+          skipLabel="Skip tour"
+          onNext={() => tourStore.nextStep()}
+          onSkip={() => {
+            tourStore.markSeen(FILE_GUTTER_DOT_TOUR_ID);
+            tourStore.endTour();
+          }}
+        />
+      )}
+
+      {FEATURE_GUIDED_UI && showAnalysisStep && (
+        <Coachmark
+          id={STEP_ANALYSIS}
+          anchorRef={firstViewAnalysisRef}
+          placement="left"
+          title="Open the analysis"
+          body="Why it's broken, what replaces it, and which standard says so."
+          step={[2, 2]}
+          nextLabel="Open"
+          skipLabel="Skip tour"
+          onNext={() => {
+            firstViewAnalysisRef.current?.click();
+            tourStore.handoffTour(FINDING_TABS_TOUR_ID, TAB_STEP_IDS);
+          }}
+          onSkip={() => {
+            tourStore.markSeen(FILE_GUTTER_DOT_TOUR_ID);
+            tourStore.endTour();
+          }}
+        />
+      )}
+
+      {FEATURE_GUIDED_UI && modalOpen && tourStore.getSnapshot().activeTour === FINDING_TABS_TOUR_ID && tabTourStepInfo && (
+        <Coachmark
+          id={tabTourStepInfo.stepId}
+          anchorRef={tabTourStepInfo.anchorRef}
+          placement="bottom"
+          title={tabTourStepInfo.title}
+          body={tabTourStepInfo.body}
+          step={[tabTourStepInfo.stepN, 4]}
+          nextLabel={tabTourStepInfo.stepN === 4 ? "Done" : "Next →"}
+          skipLabel="Skip tour"
+          onNext={() => {
+            if (tabTourStepInfo.stepN === 4) {
+              tourStore.markSeen(FINDING_TABS_TOUR_ID);
+              tourStore.endTour();
+            } else {
+              setModalTab(tabTourStepInfo.nextTabId);
+            }
+          }}
+          onSkip={() => {
+            tourStore.markSeen(FINDING_TABS_TOUR_ID);
+            tourStore.endTour();
+          }}
+        />
+      )}
     </>
   );
 }

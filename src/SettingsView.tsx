@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { Check } from "lucide-react";
+import { tourStore } from "./tour/store";
+import { FEATURE_GUIDED_UI } from "./tour/flags";
 
 type SettingType = "number" | "toggle" | "select" | "slider" | "display";
 
@@ -206,6 +208,28 @@ export function SettingsView() {
                 </div>
               </div>
             ))}
+
+            {FEATURE_GUIDED_UI && (
+              <div className="rounded-xl border p-5" style={{ background: "#161b22", borderColor: "#21262d" }}>
+                <h2 className="text-sm font-semibold text-white">Guided Tour</h2>
+                <div className="mt-3 flex items-center justify-between gap-6 py-1">
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold text-white">Restart guided tour</div>
+                    <p className="mt-0.5 text-xs" style={{ color: "#8b949e" }}>
+                      Clears every coachmark you've already dismissed so the tour shows again. Same as Ctrl+Shift+T.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => tourStore.resetAll()}
+                    className="shrink-0 rounded-md border px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-white/5"
+                    style={{ borderColor: "#30363d" }}
+                  >
+                    Restart tour
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
