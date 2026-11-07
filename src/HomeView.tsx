@@ -28,6 +28,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { displayName, type Finding } from "./cbom/types";
+import { FEATURE_GUIDED_UI } from "./tour/flags";
 import { compareFindingsPriority } from "./priority";
 import type { NavItem } from "./AppShell";
 import { handleExportCBOM } from "./cbomExport";
@@ -193,6 +194,36 @@ export function HomeView({
     (f) => f.quantumStatus === "broken-by-shor" || f.quantumStatus === "weakened-by-grover",
   ).length;
 
+  // Hero banner capability strip. Mirrors two selectors that already exist
+  // elsewhere in the app rather than inventing new business logic:
+  //  - "live-reachable" excludes mixedReachability findings from the
+  //    live-external/live-internal buckets, same carve-out FindingsTable.tsx
+  //    already applies (a Mixed finding belongs only to its own bucket, or
+  //    counting it here too would double-count it against that view).
+  //  - "constraints found" is the exact qualifying-findings filter
+  //    BlastRadiusView.tsx already uses for its own empty-state check.
+  const liveReachableCount = useMemo(
+    () =>
+      findings.filter(
+        (f) =>
+          f.findingType !== "CRYPTO_REFERENCE" &&
+          f.findingType !== "CERTIFICATE" &&
+          f.findingType !== "CERTIFICATE_UNPARSEABLE" &&
+          !f.mixedReachability &&
+          (f.reachability === "live-external" || f.reachability === "live-internal"),
+      ).length,
+    [findings],
+  );
+  const blastRadiusConstraints = useMemo(() => findings.filter((f) => f.blastRadius.length > 0).length, [findings]);
+
+  const capabilityNodes: { key: string; label: string; value: number | undefined; color: string }[] = [
+    { key: "discover", label: "Discover", value: filesScanned, color: "#6b7280" },
+    { key: "classify", label: "Classify", value: algorithmsDetected, color: "#6b7280" },
+    { key: "reach", label: "Reach", value: liveReachableCount, color: "#f59e0b" },
+    { key: "blast", label: "Blast Radius", value: blastRadiusConstraints, color: "#ef4444" },
+    { key: "migrate", label: "Migrate", value: requireMigration, color: "#22c55e" },
+  ];
+
   return (
     <div className="h-full overflow-y-auto" style={{ background: "#0d1117" }}>
       {/* Scan header bar */}
@@ -273,29 +304,70 @@ export function HomeView({
             </p>
           </div>
 
-          <svg className="pointer-events-none absolute inset-0 h-full w-full" viewBox="0 0 800 140" preserveAspectRatio="none" aria-hidden="true">
-            <defs>
-              <linearGradient id="terrain1" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#7c3aed" stopOpacity="0.55" />
-                <stop offset="100%" stopColor="#7c3aed" stopOpacity="0" />
-              </linearGradient>
-              <linearGradient id="terrain2" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.5" />
-                <stop offset="100%" stopColor="#3b82f6" stopOpacity="0" />
-              </linearGradient>
-            </defs>
-            <path d="M280,140 L380,40 L450,100 L520,20 L600,90 L680,55 L760,140 Z" fill="url(#terrain1)" />
-            <path d="M340,140 L420,80 L500,130 L560,60 L650,120 L720,80 L800,140 Z" fill="url(#terrain2)" />
-          </svg>
+          {!FEATURE_GUIDED_UI ? (
+            <>
+              <svg className="pointer-events-none absolute inset-0 h-full w-full" viewBox="0 0 800 140" preserveAspectRatio="none" aria-hidden="true">
+                <defs>
+                  <linearGradient id="terrain1" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#7c3aed" stopOpacity="0.55" />
+                    <stop offset="100%" stopColor="#7c3aed" stopOpacity="0" />
+                  </linearGradient>
+                  <linearGradient id="terrain2" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.5" />
+                    <stop offset="100%" stopColor="#3b82f6" stopOpacity="0" />
+                  </linearGradient>
+                </defs>
+                <path d="M280,140 L380,40 L450,100 L520,20 L600,90 L680,55 L760,140 Z" fill="url(#terrain1)" />
+                <path d="M340,140 L420,80 L500,130 L560,60 L650,120 L720,80 L800,140 Z" fill="url(#terrain2)" />
+              </svg>
 
-          <div className="relative z-10 max-w-[220px] text-right">
-            <p className="text-sm italic leading-snug" style={{ color: "#c9d1d9" }}>
-              "Small steps today.
-              <br />
-              A quantum-safe tomorrow."
-            </p>
-            <div className="ml-auto mt-2 h-0.5 w-16" style={{ background: "#22c55e" }} />
-          </div>
+              <div className="relative z-10 max-w-[220px] text-right">
+                <p className="text-sm italic leading-snug" style={{ color: "#c9d1d9" }}>
+                  &ldquo;Small steps today.
+                  <br />
+                  A quantum-safe tomorrow.&rdquo;
+                </p>
+                <div className="ml-auto mt-2 h-0.5 w-16" style={{ background: "#22c55e" }} />
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="relative z-10 hidden shrink-0 items-center md:flex" style={{ minWidth: 340 }}>
+                {capabilityNodes.map((node, i) => (
+                  <div key={node.key} className="flex items-center">
+                    {i > 0 && (
+                      <div
+                        className="h-px w-8 animate-capability-line lg:w-12"
+                        style={{ background: "#30363d", animationDelay: `${i * 60}ms` }}
+                      />
+                    )}
+                    <div
+                      className="flex flex-col items-center gap-1.5 px-1.5 animate-row-in"
+                      style={{ animationDelay: `${i * 60}ms` }}
+                    >
+                      <span
+                        className="whitespace-nowrap text-[11px] font-semibold uppercase tracking-wider"
+                        style={{ color: "#8b949e" }}
+                      >
+                        {node.label}
+                      </span>
+                      <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: node.color }} aria-hidden="true" />
+                      <span className="text-lg font-bold tabular-nums text-white">{node.value ?? "—"}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="relative z-10 max-w-[220px] shrink-0 text-right">
+                <p className="text-[11px] font-medium uppercase tracking-wider" style={{ color: "#8b949e" }}>
+                  Smart India Hackathon 2026 · Problem Statement 26164 · NTRO
+                </p>
+                <p className="mt-1 text-[13px] font-medium" style={{ color: "#c9d1d9" }}>
+                  Enterprise Cryptographic Discovery &amp; Analysis Tool
+                </p>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Metric tiles */}

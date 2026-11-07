@@ -20,6 +20,8 @@ import { FeedbackView } from "./FeedbackView";
 import { ResizableDivider } from "./components/ResizableDivider";
 import { SERVICE_BASE_URL } from "./serviceUrl";
 import { addToHistory } from "./scanHistory";
+import { FEATURE_GUIDED_UI } from "./tour/flags";
+import { Layers, ListFilter } from "lucide-react";
 
 const FINDINGS_DETAIL_WIDTH_KEY = "findings-detail-width";
 const FINDINGS_DETAIL_WIDTH_DEFAULT = 380;
@@ -320,16 +322,18 @@ export function App() {
               {activeNav === "Findings" && (
                 <div className="flex h-full flex-col overflow-hidden p-4 sm:p-6" style={{ background: "#0d1117" }}>
                   <div className="shrink-0 border-b pb-3" style={{ borderColor: "#21262d" }}>
-                    <div className="flex flex-wrap items-center justify-between gap-4">
-                      <div>
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="min-w-0 flex-1">
                         <h1 className="text-2xl font-bold text-white">Cryptographic Findings</h1>
                         <p className="mt-1 text-sm" style={{ color: "#8b949e" }}>
                           {findingsViewMode === "all"
-                            ? "Complete inventory of detected cryptographic assets, ordered by combined algorithmic vulnerability and runtime reachability."
+                            ? (FEATURE_GUIDED_UI
+                                ? "Complete inventory of detected cryptographic assets, ordered by combined algorithmic vulnerability and runtime reachability. #1 is the highest-priority fix."
+                                : "Complete inventory of detected cryptographic assets, ordered by combined algorithmic vulnerability and runtime reachability.")
                             : "Consolidated inventory of unique cryptographic algorithms, grouped across all scan occurrences."}
                         </p>
                       </div>
-                      <div className="flex items-center gap-1 rounded-lg border p-1" style={{ borderColor: "#30363d", background: "#161b22" }}>
+                      <div className="shrink-0 flex items-center gap-1 rounded-lg border p-1" style={{ borderColor: "#30363d", background: "#161b22" }}>
                         <button
                           type="button"
                           onClick={() => {
@@ -342,6 +346,7 @@ export function App() {
                               : "text-[#8b949e] hover:bg-[#21262d] hover:text-[#f0f6fc]"
                           }`}
                         >
+                          <ListFilter className="h-3.5 w-3.5" />
                           <span>All Findings</span>
                           <span
                             className="rounded-full px-2 py-0.5 text-[10px] font-bold"
@@ -365,6 +370,7 @@ export function App() {
                               : "text-[#8b949e] hover:bg-[#21262d] hover:text-[#f0f6fc]"
                           }`}
                         >
+                          <Layers className="h-3.5 w-3.5" />
                           <span>Unique Only</span>
                           <span
                             className="rounded-full px-2 py-0.5 text-[10px] font-bold"

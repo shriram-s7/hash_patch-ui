@@ -1,8 +1,20 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { displayName, type BlastRadiusEntry, type DataChainType, type Finding } from "./cbom/types";
 import { useAnimatedWidth } from "./useAnimatedWidth";
 import { ResizableDivider } from "./components/ResizableDivider";
 import { getNodeColor } from "./graphColors";
+import { FEATURE_GUIDED_UI } from "./tour/flags";
+import { Coachmark } from "./tour/Coachmark";
+import { tourStore } from "./tour/store";
+import { useTourStep } from "./tour/useTourStep";
+import { useReducedMotion } from "./tour/useReducedMotion";
+import { DUR_RISE, EASE_OUT } from "./tour/motionTokens";
+
+const BLAST_INTRO_TOUR_ID = "blast.intro";
+const STEP_SIMULATE_ALL = "blast.intro.simulate-all";
+const STEP_SIMULATE_BUFFER = "blast.intro.simulate-buffer";
+const STEP_SHOCKWAVE = "blast.intro.shockwave";
+const BLAST_INTRO_STEPS = [STEP_SIMULATE_ALL, STEP_SIMULATE_BUFFER, STEP_SHOCKWAVE];
 
 const ASSET_WIDTH_KEY = "blast-asset-width";
 const ASSET_WIDTH_DEFAULT = 260;
@@ -146,10 +158,12 @@ function BufferCard({
   entry,
   simulating,
   onSimulate,
+  buttonRef,
 }: {
   entry: BlastRadiusEntry;
   simulating: boolean;
   onSimulate: () => void;
+  buttonRef?: React.Ref<HTMLButtonElement>;
 }) {
   const declared = entry.declaredBytes ?? 0;
   const pqc = entry.pqcBytes ?? 0;
@@ -212,6 +226,7 @@ function BufferCard({
       )}
 
       <button
+        ref={buttonRef}
         type="button"
         onClick={onSimulate}
         disabled={simulating}
@@ -233,12 +248,52 @@ export function BufferImpactSummary({ selected, replacement }: { selected: Findi
   const totalRequired = selected.blastRadius.reduce((sum, b) => sum + (b.pqcBytes ?? 0), 0);
   const totalOverflow = totalRequired - totalDeclared;
 
+  const reducedMotion = useReducedMotion();
+  const [entered, setEntered] = useState(() => !FEATURE_GUIDED_UI || reducedMotion);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const seenFindings = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!FEATURE_GUIDED_UI || reducedMotion) {
+      setEntered(true);
+      return;
+    }
+    if (seenFindings.current.has(selected.id)) {
+      setEntered(true);
+      return;
+    }
+
+    setEntered(false);
+    const el = panelRef.current;
+    if (!el) return;
+
+    if (typeof IntersectionObserver === "undefined") {
+      setEntered(true);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        if (entry?.isIntersecting) {
+          seenFindings.current.add(selected.id);
+          setEntered(true);
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [selected.id, reducedMotion]);
+
   if (totalDeclared <= 0) return null;
 
   const declaredPct = Math.min(100, (totalDeclared / Math.max(totalRequired, 1)) * 100);
 
   return (
-    <div className="mb-4 rounded-xl border p-4" style={{ background: "#0d1117", borderColor: "#21262d" }}>
+    <div ref={panelRef} className="mb-4 rounded-xl border p-4" style={{ background: "#0d1117", borderColor: "#21262d" }}>
       <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: "#8b949e" }}>
         Total Buffer Impact — {displayName(selected)} → {replacement}
       </h3>
@@ -261,7 +316,21 @@ export function BufferImpactSummary({ selected, replacement }: { selected: Findi
       <div className="relative h-3 overflow-hidden rounded-full" style={{ background: "#21262d" }}>
         <div className="absolute inset-y-0 left-0 rounded-l-full" style={{ width: `${declaredPct}%`, background: "#3b82f6" }} />
         {declaredPct < 100 && (
-          <div className="absolute inset-y-0 rounded-r-full" style={{ left: `${declaredPct}%`, right: 0, background: "#ef4444" }} />
+          <div
+            className="absolute inset-y-0 rounded-r-full"
+            style={{
+              left: `${declaredPct}%`,
+              right: 0,
+              background: "#ef4444",
+              ...(FEATURE_GUIDED_UI
+                ? {
+                    transformOrigin: "left center",
+                    transform: entered ? "scaleX(1)" : "scaleX(0)",
+                    transition: entered && !reducedMotion ? `transform ${DUR_RISE}ms ${EASE_OUT}` : "none",
+                  }
+                : {}),
+            }}
+          />
         )}
       </div>
       {totalOverflow > 0 && (
@@ -445,7 +514,25 @@ export function BlastRadiusView({
     });
   };
 
+  // Tour refs & step hooks for blast.intro
+  const simulateAllRef = useRef<HTMLButtonElement>(null);
+  const firstSimulateButtonRef = useRef<HTMLButtonElement>(null);
+  const shockwaveButtonRef = useRef<HTMLButtonElement>(null);
+
+  const showSimulateAllStep = useTourStep(STEP_SIMULATE_ALL);
+  const showSimulateBufferStep = useTourStep(STEP_SIMULATE_BUFFER);
+  const showShockwaveStep = useTourStep(STEP_SHOCKWAVE);
+
   const qualifying = useMemo(() => findings.filter((f) => f.blastRadius.length > 0), [findings]);
+
+  // Auto-arm blast.intro tour once on first entry when constraints exist
+  useEffect(() => {
+    if (!FEATURE_GUIDED_UI) return;
+    if (qualifying.length === 0) return;
+    if (tourStore.hasSeen(BLAST_INTRO_TOUR_ID)) return;
+    if (tourStore.getSnapshot().activeTour) return;
+    tourStore.startTour(BLAST_INTRO_TOUR_ID, BLAST_INTRO_STEPS);
+  }, [qualifying.length]);
 
   const selected = qualifying.find((f) => f.id === selectedId) ?? qualifying[0];
   const topSeverity = selected?.blastRadius[0]?.severity;
@@ -509,6 +596,7 @@ export function BlastRadiusView({
           </div>
           {qualifying.length > 0 && (
             <button
+              ref={FEATURE_GUIDED_UI ? simulateAllRef : undefined}
               type="button"
               onClick={simulateAll}
               className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors"
@@ -547,7 +635,7 @@ export function BlastRadiusView({
                 Constraints Found
               </div>
               <div>
-                {qualifying.map((f) => {
+                {qualifying.map((f, idx) => {
                   const isSelected = f.id === selected?.id;
                   const dotColor = SEVERITY_COLOR[f.blastRadius[0]?.severity ?? ""] ?? "#8b949e";
                   return (
@@ -569,6 +657,7 @@ export function BlastRadiusView({
                       <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: dotColor }} aria-hidden="true" />
                       <span className="min-w-0 flex-1 truncate text-sm font-semibold text-white">{displayName(f)}</span>
                       <button
+                        ref={idx === 0 && FEATURE_GUIDED_UI ? shockwaveButtonRef : undefined}
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
@@ -620,6 +709,7 @@ export function BlastRadiusView({
                           entry={entry}
                           simulating={simulatedKeys.has(key)}
                           onSimulate={() => setSimulatedKeys((prev) => new Set(prev).add(key))}
+                          buttonRef={i === 0 && FEATURE_GUIDED_UI ? firstSimulateButtonRef : undefined}
                         />
                       );
                     })}
@@ -632,6 +722,63 @@ export function BlastRadiusView({
           </div>
         )}
       </div>
+
+      {FEATURE_GUIDED_UI && showSimulateAllStep && (
+        <Coachmark
+          id={STEP_SIMULATE_ALL}
+          anchorRef={simulateAllRef}
+          placement="bottom"
+          title="Simulate everything at once"
+          body="Applies every PQC replacement and shows which buffers and columns overflow, across the whole scan."
+          step={[1, 3]}
+          nextLabel="Next →"
+          skipLabel="Skip tour"
+          onNext={() => tourStore.nextStep()}
+          onSkip={() => {
+            tourStore.markSeen(BLAST_INTRO_TOUR_ID);
+            tourStore.endTour();
+          }}
+        />
+      )}
+
+      {FEATURE_GUIDED_UI && showSimulateBufferStep && (
+        <Coachmark
+          id={STEP_SIMULATE_BUFFER}
+          anchorRef={firstSimulateButtonRef}
+          placement="top"
+          title="Or one buffer at a time"
+          body="Watch a single allocation grow from its declared size to what the replacement actually needs."
+          step={[2, 3]}
+          nextLabel="Next →"
+          skipLabel="Skip tour"
+          onNext={() => tourStore.nextStep()}
+          onSkip={() => {
+            tourStore.markSeen(BLAST_INTRO_TOUR_ID);
+            tourStore.endTour();
+          }}
+        />
+      )}
+
+      {FEATURE_GUIDED_UI && showShockwaveStep && (
+        <Coachmark
+          id={STEP_SHOCKWAVE}
+          anchorRef={shockwaveButtonRef}
+          placement="right"
+          title="Shockwave"
+          body="Jumps down to the concentric dependency diagram, mapping every caller, ciphertext consumer, and key-material dependent impacted outward from this algorithm."
+          step={[3, 3]}
+          nextLabel="Done"
+          skipLabel=""
+          onNext={() => {
+            tourStore.markSeen(BLAST_INTRO_TOUR_ID);
+            tourStore.endTour();
+          }}
+          onSkip={() => {
+            tourStore.markSeen(BLAST_INTRO_TOUR_ID);
+            tourStore.endTour();
+          }}
+        />
+      )}
     </div>
   );
 }

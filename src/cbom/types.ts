@@ -314,6 +314,25 @@ export interface ContradictionEntry {
   id: string;
   severity: string | undefined;
   description: string | undefined;
+  sourceIntent?: {
+    format?: string;
+    value?: string;
+    locator?: string;
+    line?: number;
+  };
+  deployedConfig?: {
+    format?: string;
+    value?: string;
+    legacyReasons?: string[];
+    locator?: string;
+    line?: number;
+  };
+  declaredAlgorithm?: string;
+  implementedAlgorithm?: string;
+  declaringLocator?: string;
+  declaringLine?: number;
+  callSiteLocator?: string;
+  callSiteLine?: number;
 }
 
 export interface ParsedCbom {

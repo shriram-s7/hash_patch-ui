@@ -28,6 +28,13 @@ import { compareFindingsPriority } from "./priority";
 import { getRecommendationForFinding } from "./pqcRecommendations";
 import { OverflowBar, BlastRadiusEmptyState } from "./charts";
 import { ShockwaveDiagram } from "./BlastRadiusView";
+import { FEATURE_GUIDED_UI } from "./tour/flags";
+import { tourStore } from "./tour/store";
+import {
+  initClipboardSubscriber,
+  listenForNextClipboardWrite,
+  formatCopiedPreview,
+} from "./tour/clipboardSubscriber";
 
 ChartJS.register(ArcElement, CategoryScale, LinearScale, BarElement, Tooltip);
 
@@ -374,6 +381,43 @@ export function ReportView({ rawText, sourceName, findings, timestamp, plan, sca
   const [contentHash, setContentHash] = useState<string | undefined>(undefined);
   const [activeSection, setActiveSection] = useState(SECTIONS[0]!.id);
   const scrollRootRef = useRef<HTMLDivElement>(null);
+  const shareBtnRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!FEATURE_GUIDED_UI) return;
+    initClipboardSubscriber();
+
+    const btn = shareBtnRef.current;
+    if (!btn) return;
+
+    const onShareClick = () => {
+      listenForNextClipboardWrite((res) => {
+        if (res.ok) {
+          tourStore.showToast({
+            type: "success",
+            title: "Copied to clipboard",
+            detail: formatCopiedPreview(res.text),
+            durationMs: 2000,
+          });
+        } else {
+          const errMsg =
+            res.error instanceof Error
+              ? res.error.message
+              : typeof res.error === "string"
+              ? res.error
+              : "Clipboard write failed";
+          tourStore.showToast({
+            type: "error",
+            title: "Couldn't copy",
+            detail: errMsg,
+          });
+        }
+      });
+    };
+
+    btn.addEventListener("click", onShareClick);
+    return () => btn.removeEventListener("click", onShareClick);
+  }, []);
 
   useEffect(() => {
     if (rawText === undefined) {
@@ -615,6 +659,7 @@ export function ReportView({ rawText, sourceName, findings, timestamp, plan, sca
                 {pdfStatus ?? (pdfExporting ? "Generating…" : "Export PDF")}
               </button>
               <button
+                ref={FEATURE_GUIDED_UI ? shareBtnRef : undefined}
                 type="button"
                 onClick={handleShare}
                 className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90"

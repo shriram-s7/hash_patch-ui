@@ -35,6 +35,12 @@ import {
 } from "lucide-react";
 import { handleExportCBOM } from "./cbomExport";
 import { ScanHistoryModal } from "./ScanHistoryModal";
+import { Coachmark } from "./tour/Coachmark";
+import { useTourStep } from "./tour/useTourStep";
+import { tourStore } from "./tour/store";
+import { DUR_FAST } from "./tour/motionTokens";
+
+const OPEN_IN_EDITOR_TOUR_ID = "repo.open-in-editor";
 
 const TREE_WIDTH_KEY = "repo-tree-width";
 const TREE_WIDTH_DEFAULT = 260;
@@ -339,6 +345,33 @@ export function RepositoryView({
       active = false;
     };
   }, [previewFile, sourceName]);
+
+  // Guided-discovery: the file-detail panel's "Open in Editor" button. New
+  // ref + new listeners only -- the button's existing onClick/onMouseEnter/
+  // onMouseLeave below are untouched.
+  const openInEditorRef = useRef<HTMLButtonElement>(null);
+  const showOpenInEditorTip = useTourStep(OPEN_IN_EDITOR_TOUR_ID);
+
+  // First time a file is selected and this panel renders, auto-start the
+  // one-step tip -- but only if it hasn't been seen and nothing else is
+  // already running (never stomp another active tour).
+  useEffect(() => {
+    if (!previewFile) return;
+    if (tourStore.hasSeen(OPEN_IN_EDITOR_TOUR_ID)) return;
+    if (tourStore.getSnapshot().activeTour) return;
+    tourStore.startTour(OPEN_IN_EDITOR_TOUR_ID, [OPEN_IN_EDITOR_TOUR_ID]);
+  }, [previewFile]);
+
+  // hasSeen must be set the moment the button is clicked by ANY path --
+  // including a normal user click that never saw the tip -- so this listens
+  // on the DOM node directly rather than going through the tip's onNext.
+  useEffect(() => {
+    const el = openInEditorRef.current;
+    if (!el) return;
+    const onRealClick = () => tourStore.markSeen(OPEN_IN_EDITOR_TOUR_ID);
+    el.addEventListener("click", onRealClick);
+    return () => el.removeEventListener("click", onRealClick);
+  }, [previewFile]);
 
   const toggleExpand = (node: TreeNode, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -848,17 +881,44 @@ export function RepositoryView({
                                   </span>
                                 </div>
                                 <button
+                                  ref={openInEditorRef}
                                   type="button"
                                   onClick={() => handleSelectNode(previewFile)}
-                                  className="flex shrink-0 items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold shadow-md transition-all duration-150"
+                                  className="group flex shrink-0 items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold shadow-md transition-all duration-150"
                                   style={{ background: "#1d2d44", borderColor: "#3b82f6", color: "#3b82f6" }}
                                   onMouseEnter={(e) => { e.currentTarget.style.background = "#3b82f6"; e.currentTarget.style.color = "#ffffff"; }}
                                   onMouseLeave={(e) => { e.currentTarget.style.background = "#1d2d44"; e.currentTarget.style.color = "#3b82f6"; }}
                                 >
                                   <span>Open in Editor</span>
-                                  <span className="text-base">↗</span>
+                                  <span
+                                    className="oie-arrow inline-block text-base transition-transform group-hover:translate-x-[2px] group-hover:-translate-y-[2px]"
+                                    style={{ transitionDuration: `${DUR_FAST}ms` }}
+                                    aria-hidden="true"
+                                  >
+                                    ↗
+                                  </span>
                                 </button>
                               </div>
+
+                              {showOpenInEditorTip && (
+                                <Coachmark
+                                  id={OPEN_IN_EDITOR_TOUR_ID}
+                                  anchorRef={openInEditorRef}
+                                  placement="left-start"
+                                  title="Open the file"
+                                  body="See the flagged lines in context, with every finding mapped to its exact line number."
+                                  nextLabel="Show me"
+                                  skipLabel="Not now"
+                                  onNext={() => {
+                                    openInEditorRef.current?.click();
+                                    tourStore.endTour();
+                                  }}
+                                  onSkip={() => {
+                                    tourStore.markSeen(OPEN_IN_EDITOR_TOUR_ID);
+                                    tourStore.endTour();
+                                  }}
+                                />
+                              )}
 
                               <div className="mt-3 grid shrink-0 grid-cols-4 gap-2">
                                 {[
@@ -900,13 +960,13 @@ export function RepositoryView({
                               <div className="mt-3 shrink-0">
                                 <div className="flex items-center justify-between">
                                   <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: "#6e7681" }}>Code Preview</span>
+                                  {/* Secondary next to the header's "Open in Editor" -- ghost/outline so
+                                      the two don't compete for primary weight in this panel. */}
                                   <button
                                     type="button"
                                     onClick={() => handleSelectNode(previewFile)}
-                                    className="flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold text-white transition-colors"
-                                    style={{ background: "#3b82f6" }}
-                                    onMouseEnter={(e) => (e.currentTarget.style.background = "#2563eb")}
-                                    onMouseLeave={(e) => (e.currentTarget.style.background = "#3b82f6")}
+                                    className="flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-bold transition-colors hover:bg-white/5"
+                                    style={{ borderColor: "#30363d", color: "#c9d1d9" }}
                                   >
                                     Open Full View ↗
                                   </button>

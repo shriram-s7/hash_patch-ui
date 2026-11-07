@@ -68,6 +68,7 @@ export function ClusterGraph({
   onSearchChange,
   activeFilters,
   onToggleFilter,
+  clusterButtonRef,
 }: {
   findings: Finding[];
   selectedId: string | undefined;
@@ -78,6 +79,7 @@ export function ClusterGraph({
   onSearchChange: (term: string) => void;
   activeFilters: string[];
   onToggleFilter: (status: string) => void;
+  clusterButtonRef?: React.Ref<HTMLButtonElement>;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const fgRef = useRef<ForceGraphMethods<NodeObject<GraphNode>> | undefined>(undefined);
@@ -190,6 +192,7 @@ export function ClusterGraph({
           </p>
         </div>
         <button
+          ref={clusterButtonRef}
           type="button"
           onClick={() => setClustered((c) => !c)}
           aria-pressed={clustered}
