@@ -1,81 +1,115 @@
 # Hash Patch UI
 
-[![Build](https://img.shields.io/badge/build-vite%20passing-brightgreen?style=flat-square)](https://vitejs.dev/)
-[![Tests](https://img.shields.io/badge/tests-vitest%20passing-brightgreen?style=flat-square)](https://vitest.dev/)
-[![Linter](https://img.shields.io/badge/linter-oxlint%20passed-brightgreen?style=flat-square)](https://oxc-project.github.io/)
-[![UI Style](https://img.shields.io/badge/theme-forensic%20terminal-blueviolet?style=flat-square)](https://github.com/shriram-s7/hash_patch-ui)
+The web / desktop front end for **[Hash Patch](https://github.com/shriram-s7/hash_patch)**, an offline post-quantum cryptographic discovery and risk-analysis tool. It talks to the Hash Patch engine's local HTTP service and presents scan results as findings tables, graphs, migration plans and PDF reports.
 
-The modern, forensic-terminal user interface for **Hash Patch** — an offline post-quantum cryptographic discovery and risk analysis platform.
+**Links:** [GitHub](https://github.com/shriram-s7/hash_patch-ui) · Engine: [hash_patch](https://github.com/shriram-s7/hash_patch) · [Desktop release v0.1.0](https://github.com/shriram-s7/hash_patch/releases/tag/v0.1.0) · [Demo video](https://youtu.be/5Hb2-dnYOR8)
 
-Built with **React 19**, **TypeScript**, **Vite**, and **Tailwind CSS**, designed to run both as a fast web application and as an embedded GUI inside the **Hash Patch Desktop** Electron application.
+## Overview
 
----
+Hash Patch scans a code base for cryptography and produces a CycloneDX 1.6 CBOM. This UI is the "forensic terminal" view of that data: pick a folder, run a scan, then explore which cryptographic assets are reachable, what quantum risk they carry, and what to migrate first. It runs as a normal Vite web app and is also embedded in the Hash Patch Desktop (Electron) build, where the desktop shell supplies the engine URL and a native folder picker.
 
-## 📥 Desktop Downloads
+## Desktop downloads (Windows x64)
 
-Download the pre-bundled desktop application with the offline scanning engine:
+- [HashPatch-Setup.exe (installer)](https://github.com/shriram-s7/hash_patch/releases/download/v0.1.0/HashPatch-Setup.exe)
+- [HashPatch-Portable.exe (standalone)](https://github.com/shriram-s7/hash_patch/releases/download/v0.1.0/HashPatch-Portable.exe)
+- [All releases](https://github.com/shriram-s7/hash_patch/releases/latest)
 
-- 🪟 [**Windows Installer (HashPatch-Setup.exe)**](https://github.com/shriram-s7/hash_patch/releases/download/v0.1.0/HashPatch-Setup.exe)
-- 💼 [**Windows Standalone Portable (HashPatch-Portable.exe)**](https://github.com/shriram-s7/hash_patch/releases/download/v0.1.0/HashPatch-Portable.exe)
-- 📦 [**All Releases & Changelog**](https://github.com/shriram-s7/hash_patch/releases/latest)
+## Features
 
----
+- **Home and workspace:** path entry, scan history, guided workflow tour, folder tree and per-file code view (`HomeView`, `EntryScreen`, `FileWorkspace`, `src/tour/`).
+- **Findings:** all-findings table and a unique-findings view grouped by primitive, with reachability, exposure and quantum-status badges.
+- **Graphs:** blast-radius and call/cluster graphs with search, zoom, minimap and legend (`react-force-graph-2d`).
+- **Shelf-life and risk charts:** donut, folder-risk, file-priority and risk-curve charts (`chart.js`), plus a timeline scrubber.
+- **Migration planner and optimiser:** budget-driven plan from the engine's `/api/optimize`.
+- **Reports:** multi-page A4 PDF export (`jspdf`, `html2canvas-pro`).
+- **Ask:** natural-language questions about a scan, answered by the engine (optionally using a local Ollama model).
+- **Light/dark theme** and CBOM export.
 
-## 🌟 Key UI Capabilities
+## How it works
 
-- **Unified Home & Workspace**:
-  - Direct path input supporting absolute and relative repository paths.
-  - One-click access to quick demo scan targets, scan history, and guided onboarding.
-- **Findings Inspector & Unique View**:
-  - **All Findings Mode**: Detailed per-finding reachability, call chains, algorithm specs, and code context.
-  - **Unique Findings Mode**: Grouping by cryptographic primitive (e.g. SHA-1, RSA, AES) with change counts, aggregated occurrences, and quick category filtering.
-- **Blast Radius & Topology Graph**:
-  - Interactive SVG dependency and call graph visualization showing cryptographic risk propagation from entry points to sinks.
-  - Search filter bar, dynamic zoom controls, interactive minimap, and legend.
-- **PQC Migration Planner & Optimizer**:
-  - Visual burn-down charts, NIST-standardized replacements (ML-KEM, ML-DSA, SLH-DSA), and step-by-step code patch snippets.
-- **Discrete Multi-Page PDF Report Generation**:
-  - Generates executive and technical audit-ready PDF reports with deterministic A4 discrete paging and high-resolution vector rendering.
-- **Offline AI Assistant ("Ask")**:
-  - Natural language Q&A against the discovered CBOM and code context using local Ollama integration.
+```mermaid
+flowchart LR
+  U[User] --> UI[hash_patch-ui: React + Vite]
+  UI -->|POST /api/scan| S[hash-patch serve]
+  UI -->|POST /api/optimize, /api/ask| S
+  UI -->|GET /api/file-content, /api/health, /api/ollama-status| S
+  S --> E[Hash Patch engine]
+  E --> CB[CBOM + analysis]
+  CB --> UI
+  UI --> V[Findings, graphs, plan, PDF]
+```
 
----
+In the browser the service URL defaults to `http://localhost:8000` (`src/serviceUrl.ts`). In the Electron build the shell injects the real URL through `window.hashPatchApi.backendUrl`.
 
-## 🛠️ Development & Local Run
+## Tech stack
 
-### Prerequisites
-- Node.js 20+
-- npm
+| Layer | Technology |
+|---|---|
+| UI | React 19, TypeScript |
+| Build | Vite, Tailwind CSS (`@tailwindcss/vite`) |
+| Charts and graphs | chart.js / react-chartjs-2, react-force-graph-2d |
+| Reports | jsPDF, html2canvas-pro |
+| Code display | prism-react-renderer |
+| Quality | Vitest, Oxlint |
 
-### Installation
-```bash
-# Clone the repository
+## Project structure
+
+```text
+src/
+  *.tsx            views: Home, Entry, FileWorkspace, FindingsTable, BlastRadius, Migration, Report, Ask, Settings
+  cbom/            CBOM types and CBOM-to-findings mapping
+  charts/          chart components
+  components/      graph legend, minimap, search bar, dividers
+  badges/          exposure, quantum-status and reachability badges
+  plan/            migration plan helpers
+  tour/            guided tour (coachmarks, store, hotkey)
+public/fixtures/   demo CBOM fixtures
+```
+
+## Getting started
+
+Prerequisites: Node.js 20+ and npm, and the engine installed from [hash_patch](https://github.com/shriram-s7/hash_patch) (Python 3.11+).
+
+```powershell
+# terminal 1: engine service on the port the UI expects
+cd ..\hash_patch
+pip install -e ".[dev]"
+hash-patch serve --port 8000
+
+# terminal 2: UI
 git clone https://github.com/shriram-s7/hash_patch-ui.git
 cd hash_patch-ui
-
-# Install dependencies
-npm install
-
-# Start Vite development server
+npm ci
 npm run dev
 ```
 
-### Running Tests & Quality Checks
-```bash
-# Run Vitest unit tests
-npm run test
+On Linux/macOS the commands are the same with `/` path separators. Open the URL Vite prints. No environment variables are needed. Note the engine's own default port is 8420, so pass `--port 8000` or the UI will not find it.
 
-# Run Oxlint static analysis
-npx oxlint
+## Usage
+
+Enter a project path on the home screen and run a scan (the fixtures in `public/fixtures/` provide sample data). Then open the findings, graph, migration and report views.
+
+## Tests
+
+```bash
+npm test          # vitest run
+npm run lint      # oxlint
+npm run build     # tsc -b && vite build
 ```
 
-### Building for Production
-```bash
-# Compile and build production assets into /dist
-npm run build
-```
+Observed while writing this README: **8 tests passed (3 files)**, and `npm run build` completed. Lint was not run.
 
----
+## Status and limitations
 
-## 📄 License
-This project is licensed under the Apache 2.0 / MIT License.
+- Works against `hash-patch serve` only; there is no standalone mode without the engine.
+- Test coverage is limited to CBOM mapping, relationship findings and the tour clipboard subscriber.
+- The production bundle is a single large chunk (Vite warns about chunk size).
+- Active development happens on the `ui-rebuild` branch; the GitHub default branch is `master`.
+
+## Credits
+
+Built by S Shriram as part of the Hash Patch project (Smart India Hackathon 2026, problem statement 26164).
+
+## License
+
+No license specified.
